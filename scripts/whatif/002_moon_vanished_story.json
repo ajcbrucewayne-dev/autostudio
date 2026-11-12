@@ -1,0 +1,20 @@
+{
+ "channel": "whatif",
+ "title": "What If the Moon Vanished Tonight? 🌙 #shorts",
+ "description": "What would actually happen if the Moon disappeared? Tides, darkness, and a wobbling Earth. Follow for a new What If every day! #whatif #space #science #shorts",
+ "tags": ["what if", "moon", "space", "science", "shorts"],
+ "scenes": [
+  {"say": "What if the Moon vanished tonight?", "scene": "orbit", "p": {"moon": 1, "speed": 1.2},
+   "items": [{"text": "WHAT IF...", "x": 0.5, "y": 0.13, "size": 120, "color": "#ffd600", "anim": "pop"}]},
+  {"say": "First, the night sky goes dark. No moonlight. Just stars.", "mood": "shock", "scene": "night", "p": {"moon": [1, 0], "moon_t": [0.15, 0.6]}},
+  {"say": "Then the oceans change. The Moon's gravity pulls on our seas, and creates most of our tides.", "scene": "beach", "p": {"amp": 1, "moon": 1, "speed": 1.4}},
+  {"say": "Without it, tides shrink to about one third.", "mood": "shock", "scene": "beach", "p": {"amp": [1, 0.33], "moon": [1, 0], "moon_t": [0, 0.4], "amp_t": [0.1, 0.8], "speed": 1.4}},
+  {"say": "Tide pools that crabs and shorebirds depend on could slowly dry out.", "mood": "sad", "scene": "tidepool", "p": {"water": [1, 0.1], "heat": [0, 1]}},
+  {"say": "Corals that spawn by the full moon? They'd lose their calendar.", "scene": "coral", "p": {"moon": [1, 0], "spawn": [1, 0], "moon_t": [0.3, 0.7], "spawn_t": [0.3, 0.7]},
+   "items": [{"emoji": "❓", "s": 150, "x": 0.5, "y": 0.30, "anim": "pop+float", "delay": 2.6}]},
+  {"say": "But the scariest part is slow. The Moon keeps Earth's tilt steady. Without it, over millions of years, our axis could wobble wildly.", "mood": "shock", "scene": "tilt", "p": {"wobble": [0, 30], "wobble_t": [0.45, 1.0]}},
+  {"say": "Ice ages. Scorching summers. Total climate chaos.", "fx": "flash", "scene": "chaos"},
+  {"say": "So tonight, look up, and thank the Moon. Follow for a new what if every day!", "scene": "orbit", "p": {"moon": [0, 1], "moon_t": [0, 0.3], "speed": 0.8},
+   "items": [{"emoji": "❤️", "s": 140, "x": 0.5, "y": 0.13, "anim": "pop+pulse", "delay": 1.0}]}
+ ]
+}

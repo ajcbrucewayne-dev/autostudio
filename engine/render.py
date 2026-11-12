@@ -5,6 +5,8 @@ Everything is free and offline: Kokoro TTS voice, procedural animation, procedur
 """
 import json, math, os, random, subprocess, sys, functools
 import numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scenes
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -379,6 +381,9 @@ def render(script_path, out_dir=None):
         fr = bgs.draw(t, s)
         # camera shake / flash effects
         fx = s.get("fx", "")
+        if s.get("scene"):
+            for e in scenes.draw_scene(fr, s, lt, sd, t):
+                e = dict(e, x=e["x"] / W, y=e["y"] / H, anim="none"); draw_item(fr, e, 1.0, sd, t, style)
         for it in s.get("items", []): draw_item(fr, it, lt, sd, t, style)
         if style == "whatif":  # host mascot "Blip"
             draw_blob(fr, W * 0.15, H * 0.13, 150, "#38d6c4", s.get("mood", "happy"), amp, (t % 3.7) < 0.12, 0.5, t)
