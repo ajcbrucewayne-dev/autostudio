@@ -1,0 +1,17 @@
+{
+ "channel": "whatif", "host": false, "caption_y": 0.70,
+ "title": "What If the Moon Vanished? (Explained in 45 Seconds) 🌙 #shorts",
+ "description": "Darker nights, weaker tides, and a wobbling planet. Here's what the Moon really does for us. #whatif #moon #science #shorts",
+ "tags": ["what if", "moon", "science", "explained", "shorts"],
+ "scenes": [
+  {"say": "What if the Moon vanished tonight?", "scene": "mg_title"},
+  {"say": "First, nights would get much darker. No moonlight. Just faint starlight.", "scene": "mg_darkness", "p": {"moon": [1, 0], "moon_t": [0.35, 0.8]}},
+  {"say": "Next, the oceans. The Moon's gravity tugs on our seas, making them bulge. That's what creates most of the tides.", "scene": "mg_gravity"},
+  {"say": "Without it, tides would shrink to about a third.", "scene": "mg_tidebar"},
+  {"say": "Many corals time their spawning with the full moon. They'd lose their calendar.", "scene": "mg_coral", "p": {"fade": [0, 1], "fade_t": [0.5, 0.7]}},
+  {"say": "The Moon also keeps Earth's tilt steady, at about twenty-three degrees.", "scene": "mg_dial", "p": {"wobble": 0}},
+  {"say": "Without it, over millions of years, that tilt could swing wildly.", "scene": "mg_years"},
+  {"say": "Bringing ice ages, and scorching heatwaves.", "scene": "mg_split", "fx": "flash"},
+  {"say": "Darker nights. Weaker tides. A wobbling planet. So thank you, Moon! Follow for more what ifs.", "scene": "mg_recap"}
+ ]
+}

@@ -228,6 +228,8 @@ KITS = {"orbit": k_orbit, "night": k_night, "beach": k_beach, "tidepool": k_tide
 
 def draw_scene(frame, scene, lt, sd, t):
     """Render a kit onto `frame` (1x RGB). Returns overlay emoji/text dicts in absolute pixels."""
+    if scene["scene"] not in KITS:
+        import mograph  # noqa: registers mg_* kits
     kit = KITS[scene["scene"]]
     layer = Image.new("RGBA", (W * Z, H * Z), (0, 0, 0, 0)); d = ImageDraw.Draw(layer)
     extra = kit(layer, d, Params(scene.get("p"), lt, sd), t) or []

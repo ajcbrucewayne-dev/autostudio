@@ -343,7 +343,7 @@ def draw_kid_scene(fr, k, lt, t):
     draw_kid(fr, W * x, H * k.get("y", 0.7), k.get("h", 460), pose, t, facing=k.get("facing", 1))
 
 def draw_bubble(fr, b, bt):
-    p = max(0.01, ease_back(bt / 0.35)); f = font(FONT_SANS, int(50 * p))
+    p = max(0.01, ease_back(bt / 0.35)); f = font(FONT_SANS, max(6, int(50 * p)))
     x, y = W * b.get("x", 0.5), H * b.get("y", 0.3); d = ImageDraw.Draw(fr)
     bb = d.multiline_textbbox((x, y), b["text"], font=f, anchor="mm", align="center")
     pw, ph = (bb[2] - bb[0]) / 2 + 50 * p, (bb[3] - bb[1]) / 2 + 40 * p

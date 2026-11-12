@@ -1,0 +1,29 @@
+{
+ "channel": "whatif", "host": false, "caption_y": 0.775,
+ "title": "Leo Asked: What If the Moon Disappeared? 🌙 #shorts",
+ "description": "Leo can't stop wondering about the Moon. So what would REALLY happen if it vanished? #whatif #moon #space #shorts",
+ "tags": ["what if", "moon", "space", "science", "shorts"],
+ "scenes": [
+  {"say": "Meet Leo. Every night, he stares at the Moon, and asks a million questions.", "scene": "night", "p": {"moon": 1},
+   "kid": {"x": 0.42, "y": 0.70, "h": 470, "pose": "telescope"},
+   "bubble": {"text": "Why does it\nfollow me?", "x": 0.30, "y": 0.27, "tail_x": 0.40, "tail_y": 0.42, "delay": 2.0}},
+  {"say": "But tonight, his question was huge. What if the Moon just... disappeared?", "scene": "night", "p": {"moon": 1},
+   "kid": {"x": 0.42, "y": 0.70, "h": 470, "pose": "wonder"},
+   "bubble": {"text": "What if it\nVANISHED?!", "x": 0.30, "y": 0.27, "tail_x": 0.40, "tail_y": 0.42, "delay": 2.2}},
+  {"say": "Poof! In Leo's imagination, the Moon is gone, and the night turns pitch black.", "fx": "flash", "scene": "night",
+   "p": {"moon": [1, 0], "moon_t": [0.0, 0.35]}, "kid": {"x": 0.42, "y": 0.70, "h": 470, "pose": "shock"}},
+  {"say": "Here's why that matters. The Moon's gravity tugs on Earth's oceans, making them bulge. That bulge is high tide.", "scene": "mg_gravity"},
+  {"say": "Without the Moon, tides would shrink to about a third.", "scene": "mg_tidebar"},
+  {"say": "Tide pools would stop refilling, and little crabs would be in big trouble.", "scene": "tidepool",
+   "p": {"water": [1, 0.1], "heat": [0, 1]}, "kid": {"x": 0.76, "y": 0.72, "h": 430, "pose": "sad", "facing": -1}},
+  {"say": "But the scariest part? The Moon keeps Earth's tilt steady, at about twenty-three degrees.", "scene": "mg_dial", "p": {"wobble": 0}},
+  {"say": "Without it, over millions of years, that tilt could swing wildly.", "scene": "mg_dial", "p": {"wobble": [0, 40], "wobble_t": [0.1, 0.6]}},
+  {"say": "Ice ages! Scorching summers! Total chaos!", "fx": "shake", "scene": "chaos",
+   "kid": {"x": 0.12, "y": 0.75, "h": 330, "pose": "run", "move": 0.76, "move_dur": 3.0}},
+  {"say": "Leo blinked, and looked up. The Moon was still there. Phew!", "scene": "night", "p": {"moon": [0, 1], "moon_t": [0, 0.3]},
+   "kid": {"x": 0.42, "y": 0.70, "h": 470, "pose": "look_up", "then": [[2.4, "relieved"]]},
+   "bubble": {"text": "Thanks,\nMoon!", "x": 0.28, "y": 0.28, "tail_x": 0.40, "tail_y": 0.42, "delay": 2.6}},
+  {"say": "What should Leo wonder about next? Tell us in the comments!", "scene": "night", "p": {"moon": 1},
+   "kid": {"x": 0.42, "y": 0.70, "h": 470, "pose": "wave"}}
+ ]
+}
