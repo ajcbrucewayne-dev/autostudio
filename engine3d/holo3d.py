@@ -8,7 +8,7 @@ addon_utils.enable("cycles")
 a = sys.argv[1:]
 T = json.load(open(a[0])); SI = int(a[1]); OUT = a[2]
 STILL = int(a[a.index("--still") + 1]) if "--still" in a else None
-FPS = T["fps"]; SH = T["shots"]
+FPS = T["fps"]; SH = [s_ for s_ in T["shots"] if s_["beat"] not in ("cold", "rewind")]; OFF = SH[0]["t0"]
 G = [0]
 for s_ in SH: G.append(G[-1] + s_["frames"])
 NF = G[-1]; END = NF / FPS
@@ -16,7 +16,7 @@ B = {s_["beat"]: (G[i] / FPS, G[i + 1] / FPS) for i, s_ in enumerate(SH)}
 F = lambda t: int(round(t * FPS)) + 1
 def word_t(beat, w):
     for x in SH[[s_["beat"] for s_ in SH].index(beat)]["words"]:
-        if x[0].lower().strip(".,?!'").startswith(w): return x[1]
+        if x[0].lower().strip(".,?!'").startswith(w): return x[1] - OFF
     return B[beat][0] + 1
 ROOT = "/home/user/autostudio"
 rnd = random.Random(7)
@@ -43,8 +43,8 @@ def mat(name, color, rough=0.5, emit=0.0, coat=0.0, bumpscale=0.0, bumpstr=0.1):
     return m
 
 # ---------------- hologram material: emissive + transparent, fresnel edges, scanlines, rising "build" line
-PAGES = {}
-def holo_mat(group, color, strength=3.0, base=0.15, edge=0.8, scan=True, pattern=None):
+PAGES = {}; SWEEPS = []
+def holo_mat(group, color, strength=3.0, base=0.15, edge=0.8, scan=True, pattern=None, sweep=True):
     m = bpy.data.materials.new(group); m.use_nodes = True; nt = m.node_tree; N = nt.nodes; L = nt.links.new
     for n in list(N): N.remove(n)
     def M(op, *ins, clamp=False):
@@ -61,8 +61,11 @@ def holo_mat(group, color, strength=3.0, base=0.15, edge=0.8, scan=True, pattern
     if pattern: al = M("MULTIPLY", al, pattern(N, L, z))
     mult = N.new("ShaderNodeValue"); mult.outputs[0].default_value = 0.0
     rev = N.new("ShaderNodeValue"); rev.outputs[0].default_value = 10.0
+    sw = N.new("ShaderNodeValue"); sw.name = "Sweep"; SWEEPS.append(sw)
+    band = M("MULTIPLY", M("COMPARE", M("FRACT", M("SUBTRACT", M("MULTIPLY", z, 1.3), sw.outputs[0])), 0.5, 0.008), 1.0 if sweep else 0.0)
+    al = M("MULTIPLY_ADD", band, 0.15, al)
     al = M("MULTIPLY", M("MULTIPLY", al, mult.outputs[0]), M("LESS_THAN", z, rev.outputs[0]), clamp=True)
-    line = M("COMPARE", z, rev.outputs[0], 0.007)
+    line = M("ADD", M("COMPARE", z, rev.outputs[0], 0.007), M("MULTIPLY", band, 0.4))
     em = N.new("ShaderNodeEmission"); em.inputs["Color"].default_value = (*color, 1)
     L(M("MULTIPLY", M("MULTIPLY_ADD", line, 7.0, 1.0), strength * 0.45), em.inputs["Strength"])
     tr = N.new("ShaderNodeBsdfTransparent"); mx = N.new("ShaderNodeMixShader")
@@ -138,14 +141,19 @@ def text(body, size, loc, m, parent=None, rot=(math.pi / 2, 0, 0), font=None, ex
     if holo: o.visible_shadow = False
     return o
 
-def lin(obj):
-    ad = obj.animation_data
-    if ad and ad.action:
-        for fc in getattr(ad.action, "fcurves", []):
-            for kp in fc.keyframe_points: kp.interpolation = "LINEAR"
+def fcurves_of(id_):
+    ad = id_.animation_data
+    if not ad or not ad.action: return []
+    from bpy_extras import anim_utils
+    cb = anim_utils.action_get_channelbag_for_slot(ad.action, ad.action_slot)
+    return list(cb.fcurves) if cb else []
+def lin(obj, only=None):
+    for fc in fcurves_of(obj):
+        if only and only not in fc.data_path: continue
+        for kp in fc.keyframe_points: kp.interpolation = "LINEAR"
 
 SANS = f"{ROOT}/fonts/Inter-ExtraBold.otf"; SERIF = f"{ROOT}/fonts/DejaVuSerif-Bold.ttf"
-CYAN = (0.25, 0.75, 1.0); CYAN2 = (0.5, 0.92, 1.0); SANDC = (1.0, 0.72, 0.32); RED = (1.0, 0.36, 0.18); RED2 = (1.0, 0.55, 0.3)
+CYAN = (0.08, 0.55, 1.0); CYAN2 = (0.25, 0.82, 1.0); SANDC = (1.0, 0.72, 0.32); RED = (1.0, 0.36, 0.18); RED2 = (1.0, 0.55, 0.3)
 
 # ---------------- room + desk
 w = bpy.data.worlds.new("W"); sc.world = w; w.use_nodes = True
@@ -192,12 +200,12 @@ for i, tf in enumerate(FLIPS):
 
 # ---------------- projector: glowing ring in the gutter + light cone + drifting dust
 beam_on = t_open + 0.9; beam_off = t_close - 0.5
-pm = holo_mat("beam_core", CYAN2, 8.0, 0.9, 0.3, scan=False)
+pm = holo_mat("beam_core", CYAN2, 8.0, 0.9, 0.3, scan=False, sweep=False)
 torus("ring", (0, 0, 0.128), 0.06, 0.006, pm)
 bpy.ops.mesh.primitive_circle_add(vertices=48, radius=0.055, fill_type="NGON", location=(0, 0, 0.127)); finish(bpy.context.object, pm, None, True)
 bpy.ops.mesh.primitive_cone_add(vertices=96, radius1=0.05, radius2=0.66, depth=1.15, end_fill_type="NOTHING", location=(0, 0, 0.13 + 0.575))
-bpy.ops.object.shade_smooth(); finish(bpy.context.object, holo_mat("beam", CYAN, 2.5, 0.022, 0.12, scan=False, pattern=beam_pattern), None, True)
-dm = holo_mat("dust", CYAN2, 6.0, 1.0, 0.0, scan=False)
+bpy.ops.object.shade_smooth(); finish(bpy.context.object, holo_mat("beam", CYAN, 2.5, 0.022, 0.12, scan=False, pattern=beam_pattern, sweep=False), None, True)
+dm = holo_mat("dust", CYAN2, 6.0, 1.0, 0.0, scan=False, sweep=False)
 for i in range(46):
     h = rnd.uniform(0.15, 1.0); rr = rnd.uniform(0, 0.05 + 0.5 * (h - 0.13)); an = rnd.uniform(0, 6.283)
     d = sphere("dust", (rr * math.cos(an), rr * math.sin(an), h), rnd.uniform(0.002, 0.004), dm, seg=6, holo=True)
@@ -224,18 +232,18 @@ fade_out("title", FLIPS[0] - 0.1)
 def build_earth(g, color, wcolor, with_moon, t0, t1):
     root = empty(g + "_root", (0, 0, 0.74)); tilt = empty(g + "_tilt", parent=root); tilt.rotation_euler.x = math.radians(23)
     spin = empty(g + "_spin", parent=tilt)
-    sphere("earth", (0, 0, 0), 0.165, holo_mat(g, color, 3.0, 0.06, 0.75, pattern=land_pattern), parent=spin, seg=64, holo=True)
-    wire(sphere("grid", (0, 0, 0), 0.168, holo_mat(g, color, 3.0, 0.5, 0.2, scan=False), parent=spin, seg=24, holo=True), None, 0.0016)
+    sphere("earth", (0, 0, 0), 0.165, holo_mat(g, color, 2.4, 0.06, 0.6, pattern=land_pattern), parent=spin, seg=64, holo=True)
+    wire(sphere("grid", (0, 0, 0), 0.168, holo_mat(g, color, 2.6, 0.45, 0.2, scan=False), parent=spin, seg=24, holo=True), None, 0.003)
     spin.keyframe_insert("rotation_euler", index=2, frame=F(t0)); spin.rotation_euler.z = 2.2; spin.keyframe_insert("rotation_euler", index=2, frame=F(t1)); lin(spin)
     orb = empty(g + "_orbit", parent=root)
     bulge = sphere("bulge", (0, 0, 0), 0.18, holo_mat(g, wcolor, 2.5, 0.07, 0.65), parent=orb, scale=(1.34, 0.97, 0.97), seg=64, holo=True)
     if with_moon:
         mm = holo_mat(g, (0.85, 0.93, 1.0), 3.5, 0.3, 0.7, pattern=crater_pattern)
         moon = sphere("moon", (0.43, 0, 0), 0.05, mm, parent=orb, seg=48, holo=True)
-        torus("orbit", (0, 0, 0), 0.43, 0.0022, holo_mat(g, color, 3.0, 0.7, 0.2, scan=False), parent=root)
+        torus("orbit", (0, 0, 0), 0.43, 0.0035, holo_mat(g, color, 3.0, 0.7, 0.2, scan=False), parent=root)
         dm_ = holo_mat(g, CYAN2, 6.0, 1.0, 0.0, scan=False)
         for i in range(10):  # little packets of pull: ocean -> Moon
-            dt = sphere("pull", (0.2, 0, 0), 0.0045, dm_, parent=orb, seg=8, holo=True); P = 1.0; ph_ = (i % 5) / 5 * P
+            dt = sphere("pull", (0.2, 0, 0), 0.0065, dm_, parent=orb, seg=8, holo=True); P = 1.0; ph_ = (i % 5) / 5 * P
             dt.location.y = (i // 5 - 0.5) * 0.05; dt.location.z = 0
             t = t0 - P + ph_
             while t < t1:
@@ -249,7 +257,7 @@ def build_earth(g, color, wcolor, with_moon, t0, t1):
 e0, e1 = B["earth"]
 build_earth("earth", CYAN, (0.2, 0.55, 1.0), True, e0 - 0.4, e1 + 0.4)
 lab = holo_mat("earth_lab", CYAN2, 3.5, 0.6, 0.5)
-lt = text("OCEAN BULGE", 0.042, (0, 0, 0.47), lab, font=SANS)
+lt = text("OCEAN BULGE", 0.055, (0, 0, 0.47), lab, font=SANS)
 flicker_in("earth", e0 + 0.3, 0.5, 1.0); fade_out("earth", FLIPS[1] - 0.1)
 tb = word_t("earth", "bulge"); flicker_in("earth_lab", tb, 0.44, 0.5, 0.4); fade_out("earth_lab", FLIPS[1] - 0.1)
 
@@ -259,21 +267,21 @@ broot = empty("beach_root", (0, 0, 0.3))
 bpy.ops.mesh.primitive_grid_add(x_subdivisions=30, y_subdivisions=24, size=1); shore = bpy.context.object
 shore.scale = (0.86, 0.66, 1); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 for v in shore.data.vertices: v.co.z = (-0.04 - v.co.y) * 0.4 + 0.006 * math.sin(v.co.x * 20)
-finish(shore, holo_mat("beach", SANDC, 2.2, 0.1, 0.3), broot, True); wire(shore, holo_mat("beach", SANDC, 3.0, 0.75, 0.2, scan=False), 0.0016)
+finish(shore, holo_mat("beach", SANDC, 2.2, 0.1, 0.3), broot, True); wire(shore, holo_mat("beach", SANDC, 3.0, 0.8, 0.2, scan=False), 0.003)
 bpy.ops.mesh.primitive_plane_add(size=1); sea = bpy.context.object
 oc = sea.modifiers.new("ocean", "OCEAN"); oc.geometry_mode = "GENERATE"; oc.resolution = 4; oc.spatial_size = 2; oc.repeat_x = 1; oc.repeat_y = 1
 oc.wave_scale = 0.02; oc.choppiness = 1.0; oc.wind_velocity = 7; oc.wave_alignment = 0.5; oc.wave_direction = math.radians(-90)
 oc.time = 0; oc.keyframe_insert("time", frame=1); oc.time = END * 1.3; oc.keyframe_insert("time", frame=NF); lin(sea)
-tv = word_t("vanish", "vanish")
+tv = word_t("vanish", "moon") + 0.1
 for t, ws in ((0, 0.02), (tv + 0.5, 0.02), (tv + 3.0, 0.007)):
     oc.wave_scale = ws; oc.keyframe_insert("wave_scale", frame=F(t))
 sea.scale = (0.43, 0.33, 1); bpy.ops.object.shade_smooth()
-finish(sea, holo_mat("beach", CYAN, 2.4, 0.2, 0.55), broot, True); wire(sea, holo_mat("beach", CYAN2, 3.2, 0.7, 0.2, scan=False), 0.004)
+finish(sea, holo_mat("beach", CYAN, 2.4, 0.2, 0.55), broot, True); wire(sea, holo_mat("beach", CYAN2, 3.2, 0.75, 0.2, scan=False), 0.008)
 lo, hi = -0.02, 0.075
 t_rise0 = word_t("beach", "sea") - 0.2; t_rise1 = t_rise0 + 3.2
 for t, z in ((0, lo), (t_rise0, lo), (t_rise1, hi), (tv + 0.8, hi), (tv + 3.5, lo - 0.005)):
     sea.location.z = z; sea.keyframe_insert("location", index=2, frame=F(t))
-for fc in sea.animation_data.action.fcurves if hasattr(sea.animation_data.action, "fcurves") else []:
+for fc in fcurves_of(sea):
     if fc.data_path == "location":
         for kp in fc.keyframe_points: kp.interpolation = "BEZIER"
 # tide gauge on the side
@@ -286,16 +294,16 @@ mk.visible_shadow = False
 for fc_t, z in ((0, lo), (t_rise0, lo), (t_rise1, hi), (tv + 0.8, hi), (tv + 3.5, lo)):
     mk.location.z = z; mk.keyframe_insert("location", index=2, frame=F(fc_t))
 hm = holo_mat("hightide", (1, 0.9, 0.45), 4.0, 0.8, 0.4)
-text("HIGH TIDE", 0.04, (0.3, -0.2, 0.17), hm, parent=broot, font=SANS)
+text("HIGH TIDE", 0.055, (0.3, -0.2, 0.17), hm, parent=broot, font=SANS)
 # the Moon (own group so it can glitch away)
 mroot = empty("bmoon_root", (-0.17, 0.22, 0.72), parent=broot)
 sphere("bmoon", (0, 0, 0), 0.075, holo_mat("bmoon", (0.85, 0.93, 1.0), 3.5, 0.3, 0.7, pattern=crater_pattern), parent=mroot, seg=48, holo=True)
-wire(sphere("bmoonw", (0, 0, 0), 0.077, holo_mat("bmoon", CYAN2, 3.0, 0.45, 0.2, scan=False), parent=mroot, seg=20, holo=True), None, 0.0012)
+wire(sphere("bmoonw", (0, 0, 0), 0.077, holo_mat("bmoon", CYAN2, 3.0, 0.45, 0.2, scan=False), parent=mroot, seg=20, holo=True), None, 0.0022)
 sphere("halo", (0, 0, 0), 0.11, holo_mat("bmoon", CYAN, 2.0, 0.0, 0.3, scan=False), parent=mroot, seg=48, holo=True)
 pdm = holo_mat("bmoon", CYAN2, 6.0, 1.0, 0.0, scan=False)
 for i in range(12):  # water being tugged up toward the Moon
     col_x = (i % 3 - 1) * 0.07; P = 1.3; ph_ = (i // 3) / 4 * P
-    dt = sphere("tug", (col_x, -0.02, 0), 0.0045, pdm, parent=mroot, seg=8, holo=True); t = b0 - P + ph_
+    dt = sphere("tug", (col_x, -0.02, 0), 0.0065, pdm, parent=mroot, seg=8, holo=True); t = b0 - P + ph_
     while t < tv + 0.5:
         dt.location.z = -0.62; dt.keyframe_insert("location", index=2, frame=max(1, F(t)))
         dt.location.z = -0.12; dt.keyframe_insert("location", index=2, frame=max(1, F(t + P) - 1)); t += P
@@ -336,8 +344,8 @@ for f in range(F(a0), NF + 1, 2):
     t = (f - 1) / FPS; amp = smooth((t - tw) / 2.5)
     tilt.rotation_euler.x = math.radians(23) + amp * 0.42 * math.sin(2.3 * (t - tw))
     tilt.rotation_euler.y = amp * 0.3 * math.sin(1.6 * (t - tw) + 1.0); tilt.keyframe_insert("rotation_euler", frame=f)
-at1 = holo_mat("after_t1", RED2, 4.0, 0.7, 0.5); text("TIDES  -66%", 0.058, (0, 0, 1.06), at1, font=SANS)
-at2 = holo_mat("after_t2", RED2, 4.0, 0.7, 0.5); text("TILT: UNSTABLE", 0.042, (0, 0, 0.46), at2, font=SANS)
+at1 = holo_mat("after_t1", RED2, 4.0, 0.75, 0.5); tide_txt = text("TIDES  -66%", 0.078, (0, 0, 1.07), at1, font=SANS)
+at2 = holo_mat("after_t2", RED2, 4.0, 0.7, 0.5); text("TILT: UNSTABLE", 0.055, (0, 0, 0.46), at2, font=SANS)
 flicker_in("after", a0 + 0.3, 0.5, 1.0); flicker_in("ghost", a0 + 0.3, 0.5, 1.0)
 for mult, _ in PAGES["ghost"]:
     for t in range(int((a0 + 1.5) * 4), int(n1 * 4)): key_sock(mult.outputs[0], F(t / 4), rnd.choice((0.15, 0.5, 0.3, 0.0)))
@@ -375,6 +383,27 @@ for sx in (-1, 1):
     sphere("eye", (sx * 0.018, -0.045, 0.05), 0.011, eye, parent=head, scale=(1, 0.6, 1.25))
     sphere("shine", (sx * 0.018 + 0.004, -0.052, 0.057), 0.003, shine, parent=head, seg=8)
     sphere("cheek", (sx * 0.03, -0.04, 0.035), 0.008, mat("cheek", (0.9, 0.35, 0.35), 0.6), parent=head, scale=(1, 0.4, 0.6), seg=12)
+EYES = [o for o in head.children if o.name.startswith("eye")]
+mouth = sphere("mouth", (0, -0.0445, 0.026), 0.01, mat("mouth", (0.25, 0.04, 0.04), 0.4), parent=head, scale=(1.3, 0.35, 0.45), seg=16)
+BROWS = []
+for sx in (-1, 1):
+    br = sphere("brow", (sx * 0.019, -0.047, 0.069), 0.0075, hair, parent=head, scale=(1.5, 0.45, 0.42), seg=12); br.rotation_euler.y = sx * 0.2; BROWS.append(br)
+SMILE, OH, FLAT = (1.3, 0.35, 0.45), (0.8, 0.45, 1.35), (1.0, 0.35, 0.3)
+t_wow = beam_on + 0.3
+for t, sh_ in ((0, SMILE), (t_wow, SMILE), (t_wow + 0.25, OH), (t_wow + 2.2, OH), (t_wow + 2.6, SMILE), (tv - 1.2, SMILE), (tv - 0.9, FLAT),
+               (tv + 0.05, FLAT), (tv + 0.2, OH), (B["after"][1] - 0.5, OH), (B["after"][1], FLAT), (END - 2.0, FLAT), (END - 1.5, SMILE)):
+    mouth.scale = sh_; mouth.keyframe_insert("scale", frame=F(t))
+for br in BROWS:
+    z0 = br.location.z
+    for t, dz in ((0, 0), (t_wow, 0), (t_wow + 0.25, 0.007), (t_wow + 2.2, 0.007), (t_wow + 2.6, 0), (tv - 1.2, 0), (tv - 0.9, -0.003),
+                  (tv + 0.05, -0.003), (tv + 0.2, 0.009), (B["after"][1] - 0.5, 0.009), (B["after"][1], 0)):
+        br.location.z = z0 + dz; br.keyframe_insert("location", index=2, frame=F(t))
+blinks = [t for t in (0.6, 3.2, 6.1, 9.4, 12.8, 15.9, 19.2, 22.6, 27.5, 31.0, 34.8, 38.0) if abs(t - tv) > 1.2 and t < END - 0.5]
+for e_ in EYES:
+    sz = e_.scale.z; e_.keyframe_insert("scale", index=2, frame=1)
+    for t in blinks:
+        f = F(t)
+        for df, k in ((0, 1), (2, 0.1), (4, 1)): e_.scale.z = sz * k; e_.keyframe_insert("scale", index=2, frame=f + df)
 FACE_CAM, FACE_HOLO = math.radians(22), math.radians(-152)
 for t, r in ((0, FACE_CAM), (0.9, FACE_CAM), (1.7, FACE_HOLO), (END - 2.4, FACE_HOLO), (END - 1.5, FACE_CAM)):
     leo.rotation_euler.z = r; leo.keyframe_insert("rotation_euler", index=2, frame=F(t))
@@ -407,16 +436,37 @@ keys = [(0.0, (0.95, -1.75, 0.5), (0.3, -0.35, 0.14)), (2.4, (0.75, -1.95, 0.62)
         (i1 - 0.4, (0.05, -2.3, 1.0), (0, 0, 0.74)),
         (e0 + 0.6, (-0.1, -2.1, 1.08), (0, 0, 0.74)), (e1 - 0.4, (-0.5, -1.85, 1.18), (0, 0, 0.72)),
         (b0 + 0.8, (0.1, -1.7, 1.3), (0, 0.02, 0.55)), (b1 - 0.1, (0.22, -1.5, 1.18), (0, 0.04, 0.55)),
-        (v0 + 0.7, (0.68, -1.92, 0.55), (-0.05, 0.15, 0.8)), (v1 - 0.4, (0.64, -1.85, 0.52), (-0.07, 0.15, 0.84)),
+        (v0 + 0.7, (0.68, -1.92, 0.55), (-0.05, 0.15, 0.8)), (tv + 0.2, (0.64, -1.85, 0.52), (-0.07, 0.15, 0.84)),
+        (tv + 0.2 + 1.0 / FPS, (0.25, -0.53, 0.44), (0.43, -0.86, 0.31)), (tv + 1.9, (0.29, -0.6, 0.41), (0.43, -0.86, 0.31)),
         (a0 + 0.7, (-0.2, -2.05, 1.06), (0, 0, 0.74)), (a1 - 0.4, (0.22, -1.9, 1.0), (0, 0, 0.72)),
         (n0 + 0.7, (0.2, -2.25, 0.95), (0, 0, 0.55)), (END, (0.6, -2.0, 0.6), (0.25, -0.35, 0.18))]
-for f in range(1, NF + 1, 2):
+for f in range(1, NF + 1):
     t = (f - 1) / FPS
     for (t0, p0, g0), (t1, p1, g1) in zip(keys, keys[1:]):
         if t0 <= t <= t1: k = smooth((t - t0) / (t1 - t0)); break
     else: (t0, p0, g0), (t1, p1, g1), k = keys[-2], keys[-1], 1.0
     cam.location = [x + (y - x) * k for x, y in zip(p0, p1)]; cam.keyframe_insert("location", frame=f)
     tgt.location = [x + (y - x) * k for x, y in zip(g0, g1)]; tgt.keyframe_insert("location", frame=f)
+cfl = bpy.data.lights.new("FaceFill", "AREA"); cfl.energy = 2.5; cfl.color = (0.6, 0.85, 1.0); cfl.size = 0.3
+cfo = bpy.data.objects.new("FaceFill", cfl); col.objects.link(cfo); cfo.location = (0.2, -0.45, 0.55)
+tk = cfo.constraints.new("TRACK_TO"); tk.target = leo; tk.track_axis = "TRACK_NEGATIVE_Z"; tk.up_axis = "UP_Y"
+# scan band rolls up through every hologram
+for sw in SWEEPS:
+    for f in range(1, NF + 13, 12): key_sock(sw.outputs[0], f, (f - 1) / FPS * 0.55)
+# counting text: TIDES -0% -> -66%
+t_cnt = word_t("after", "third") - 0.2
+def _count(scene, *_):
+    t = (scene.frame_current - 1) / FPS; n = int(66 * smooth((t - t_cnt) / 1.2))
+    tide_txt.data.body = f"TIDES  -{n}%"
+bpy.app.handlers.frame_change_pre.append(_count)
+if "--cues" in a:  # sound-design cue times (audio timeline)
+    cues = {"beam_on": beam_on, "beam_off": beam_off, "open": t_open, "close": t_close, "flips": FLIPS,
+            "builds": [t_title, e0 + 0.3, b0 + 0.3, a0 + 0.3, tb, th, t_cnt, word_t("after", "wobble") - 0.3],
+            "glitch": tv - 0.9, "shatter": tv + 0.15, "derez": tc0, "tide": [t_rise0, t_rise1], "cu": [tv + 0.2, tv + 1.9]}
+    json.dump({"off": OFF, "fps": FPS, "film_frames": NF,
+               "cues": {k: ([x + OFF for x in v] if isinstance(v, list) else v + OFF) for k, v in cues.items()}},
+              open(a[a.index("--cues") + 1], "w"), indent=1)
+    sys.exit()
 
 sc.render.image_settings.file_format = "JPEG"; sc.render.image_settings.quality = 94
 if "--probe" in a:
