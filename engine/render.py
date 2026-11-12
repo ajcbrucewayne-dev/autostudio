@@ -7,6 +7,7 @@ import json, math, os, random, subprocess, sys, functools
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import scenes
+from kid import draw_kid
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -317,7 +318,7 @@ def build_groups(words, maxw=3, maxc=13):
     if cur: groups.append(cur)
     return groups
 
-def draw_caption(frame, group, t, style, spk_color=None):
+def draw_caption(frame, group, t, style, spk_color=None, yfrac=None):
     g0 = group[0][1]; p = ease_back((t - g0) / 0.18)
     size = int((110 if style != "darkhistory" else 92) * (0.85 + 0.15 * p))
     f = font(FONT_SERIF if style == "darkhistory" else FONT_SANS, size)
@@ -327,11 +328,36 @@ def draw_caption(frame, group, t, style, spk_color=None):
     total = sum(widths) + sp * (len(words) - 1)
     if total > W * 0.9:  # shrink to fit
         k = W * 0.9 / total; f = font(f.path, int(size * k)); sp *= k; widths = [w * k for w in widths]; total *= k
-    d = ImageDraw.Draw(frame); x = (W - total) / 2; y = H * (0.62 if style != "skits" else 0.745)
+    d = ImageDraw.Draw(frame); x = (W - total) / 2; y = H * (yfrac or (0.62 if style != "skits" else 0.745))
     for (w, s, e), wd in zip(words, widths):
         col = hi if s <= t < e + 0.05 else base
         d.text((x, y), w, font=f, fill=col, anchor="lm", stroke_width=10, stroke_fill=(0, 0, 0))
         x += wd + sp
+
+# ---------------------------------------------------------------- story character + thought bubbles
+def draw_kid_scene(fr, k, lt, t):
+    pose = k.get("pose", "idle")
+    for at, p2 in k.get("then", []):
+        if lt >= at: pose = p2
+    x = k.get("x", 0.5) + k.get("move", 0) * min(1, lt / max(k.get("move_dur", 3.0), 0.1))
+    draw_kid(fr, W * x, H * k.get("y", 0.7), k.get("h", 460), pose, t, facing=k.get("facing", 1))
+
+def draw_bubble(fr, b, bt):
+    p = max(0.01, ease_back(bt / 0.35)); f = font(FONT_SANS, int(50 * p))
+    x, y = W * b.get("x", 0.5), H * b.get("y", 0.3); d = ImageDraw.Draw(fr)
+    bb = d.multiline_textbbox((x, y), b["text"], font=f, anchor="mm", align="center")
+    pw, ph = (bb[2] - bb[0]) / 2 + 50 * p, (bb[3] - bb[1]) / 2 + 40 * p
+    for ox, oy, k in ((-0.7, -0.5, 0.6), (0.7, -0.5, 0.6), (-0.7, 0.5, 0.55), (0.7, 0.5, 0.55), (0, -0.8, 0.6), (0, 0.8, 0.5)):
+        r = min(pw, ph) * k
+        d.ellipse((x + ox * pw - r, y + oy * ph - r, x + ox * pw + r, y + oy * ph + r), fill="white", outline=(40, 30, 30), width=5)
+    d.rounded_rectangle((x - pw, y - ph, x + pw, y + ph), int(ph), fill="white", outline=(40, 30, 30), width=5)
+    for ox, oy, k in ((-0.6, 0.8, 0.6), (-0.75, 0.62, 0.0)):
+        pass
+    tx, ty = W * b.get("tail_x", b.get("x", 0.5)), H * b.get("tail_y", b.get("y", 0.3) + 0.08)
+    for i, r in enumerate((16, 11, 7)):
+        k = (i + 1) / 4; cx_, cy_ = x + (tx - x) * (0.55 + k * 0.5), y + ph + (ty - y - ph) * k
+        d.ellipse((cx_ - r * p, cy_ - r * p, cx_ + r * p, cy_ + r * p), fill="white", outline=(40, 30, 30), width=4)
+    d.multiline_text((x, y), b["text"], font=f, fill=(40, 30, 60), anchor="mm", align="center")
 
 # ---------------------------------------------------------------- main render
 def render(script_path, out_dir=None):
@@ -385,7 +411,11 @@ def render(script_path, out_dir=None):
             for e in scenes.draw_scene(fr, s, lt, sd, t):
                 e = dict(e, x=e["x"] / W, y=e["y"] / H, anim="none"); draw_item(fr, e, 1.0, sd, t, style)
         for it in s.get("items", []): draw_item(fr, it, lt, sd, t, style)
-        if style == "whatif":  # host mascot "Blip"
+        if s.get("kid"):
+            draw_kid_scene(fr, s["kid"], lt, t)
+        if s.get("bubble") and lt >= s["bubble"].get("delay", 0.3):
+            draw_bubble(fr, s["bubble"], lt - s["bubble"].get("delay", 0.3))
+        if style == "whatif" and sc.get("host", True):  # host mascot "Blip"
             draw_blob(fr, W * 0.15, H * 0.13, 150, "#38d6c4", s.get("mood", "happy"), amp, (t % 3.7) < 0.12, 0.5, t)
         if style == "skits":
             moods = s.get("mood", {})
@@ -411,7 +441,7 @@ def render(script_path, out_dir=None):
         for gseg, g in groups:
             end = g[-1][2] + 0.15
             if g[0][1] <= t < end and gseg is seg:
-                draw_caption(fr, g, t, style, spk_col.get(gseg["spk"]) if style == "skits" else None); break
+                draw_caption(fr, g, t, style, spk_col.get(gseg["spk"]) if style == "skits" else None, sc.get("caption_y")); break
         if "flash" in fx and lt < 0.25:
             fr = Image.blend(fr, Image.new("RGB", (W, H), (255, 255, 255) if style != "darkhistory" else (160, 0, 0)), 0.7 * (1 - lt / 0.25))
         if "shake" in fx:
