@@ -1,0 +1,27 @@
+{
+ "channel": "darkhistory",
+ "title": "The Town That Couldn't Stop Dancing 💀 (1518) #shorts",
+ "description": "In 1518, hundreds of people in Strasbourg started dancing, and couldn't stop. The Dancing Plague is one of history's strangest mysteries. #darkhistory #history #mystery #shorts",
+ "tags": ["dark history", "dancing plague", "1518", "history", "mystery", "shorts"],
+ "scenes": [
+  {"stamp": "JULY 1518 · STRASBOURG", "say": "In the summer of fifteen eighteen, a woman stepped into the street, and began to dance.", "items": [
+     {"emoji": "💃", "s": 520, "x": 0.5, "y": 0.40, "anim": "fade_in+zoom"}]},
+  {"stamp": "DAY 1", "say": "There was no music. No celebration. She just couldn't stop.", "items": [
+     {"emoji": "💃", "s": 520, "x": 0.5, "y": 0.40, "anim": "zoom+shake"}]},
+  {"stamp": "DAY 6", "say": "She danced for days. And then, others joined her.", "items": [
+     {"emoji": "💃", "s": 300, "x": 0.3, "y": 0.38, "anim": "fade_in+float"},
+     {"emoji": "🕺", "s": 300, "x": 0.7, "y": 0.38, "anim": "fade_in+float", "delay": 1.0},
+     {"emoji": "💃", "s": 240, "x": 0.5, "y": 0.47, "anim": "fade_in+float", "delay": 2.0}]},
+  {"stamp": "WITHIN WEEKS", "say": "Within weeks, dozens were dancing. Some accounts claim hundreds.", "items": [
+     {"counter": [1, 400], "x": 0.5, "y": 0.38, "size": 220, "dur": 3.5, "anim": "fade_in"}]},
+  {"stamp": "THE CURE?", "say": "The city's leaders made a terrible decision. They hired musicians, and built a stage, believing the cure was more dancing.", "items": [
+     {"emoji": "🎻", "s": 420, "x": 0.5, "y": 0.40, "anim": "fade_in+zoom"}]},
+  {"stamp": "THE COST", "say": "Chroniclers wrote that some danced until they collapsed, and never got up.", "fx": "flash", "items": [
+     {"emoji": "💀", "s": 460, "x": 0.5, "y": 0.40, "anim": "fade_in+zoom"}]},
+  {"stamp": "WHY?", "say": "To this day, no one knows exactly why. Famine, disease, and fear may have driven the town to a kind of mass hysteria.", "items": [
+     {"emoji": "🌾", "s": 260, "x": 0.3, "y": 0.40, "anim": "fade_in"},
+     {"emoji": "🕯️", "s": 300, "x": 0.7, "y": 0.40, "anim": "fade_in", "delay": 1.5}]},
+  {"stamp": "SEPTEMBER 1518", "say": "The dancers were finally taken to a mountain shrine, and the plague faded. As strangely as it began.", "items": [
+     {"emoji": "⛪", "s": 460, "x": 0.5, "y": 0.40, "anim": "fade_in+zoom"}]}
+ ]
+}

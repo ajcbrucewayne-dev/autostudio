@@ -1,0 +1,19 @@
+{
+ "channel": "skits",
+ "title": "My Brain at 3AM Be Like 😩 #shorts",
+ "description": "Why does my brain do this every night?? Tag someone who relates 😂 #relatable #funny #animation #shorts",
+ "tags": ["relatable", "funny", "animation", "brain", "sleep", "shorts"],
+ "scenes": [
+  {"speaker": "A", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "Okay. Eyes closed. Big day tomorrow.", "mood": {"A": "happy", "B": "smug"}},
+  {"speaker": "B", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "Hey. Remember that thing you said in seventh grade?", "mood": {"A": "shock", "B": "smug"}},
+  {"speaker": "A", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "Why. Why would you bring that up.", "mood": {"A": "angry", "B": "happy"}},
+  {"speaker": "B", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "Also, do fish get thirsty?", "mood": {"A": "shock", "B": "happy"},
+   "props": [{"emoji": "🐟", "s": 200, "x": 0.5, "y": 0.32, "anim": "pop+float"}]},
+  {"speaker": "A", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "I mean... probably not?", "mood": {"A": "sad", "B": "smug"},
+   "props": [{"emoji": "🐟", "s": 200, "x": 0.5, "y": 0.32, "anim": "float"}]},
+  {"speaker": "B", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "Cool. Anyway, it's 4 AM now.", "mood": {"A": "happy", "B": "smug"},
+   "props": [{"emoji": "⏰", "s": 220, "x": 0.5, "y": 0.32, "anim": "pop+shake"}]},
+  {"speaker": "A", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "WHAT?!", "mood": {"A": "shock", "B": "smug"}, "fx": "flash+shake", "pause": 0.3},
+  {"speaker": "B", "set": "bedroom", "banner": "ME vs MY BRAIN at 3AM", "say": "Goodnight!", "mood": {"A": "sad", "B": "happy"}}
+ ]
+}

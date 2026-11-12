@@ -1,0 +1,33 @@
+{
+ "channel": "whatif",
+ "title": "What If the Moon Vanished Tonight? 🌙 #shorts",
+ "description": "What would actually happen if the Moon disappeared? Tides, darkness, and a wobbling Earth. Follow for a new What If every day! #whatif #space #science #shorts",
+ "tags": ["what if", "moon", "space", "science", "shorts"],
+ "scenes": [
+  {"say": "What if the Moon vanished tonight?", "items": [
+     {"planet": "earth", "r": 240, "x": 0.5, "y": 0.40, "anim": "pop+float"},
+     {"planet": "moon", "r": 80, "x": 0.82, "y": 0.27, "anim": "pop+float"},
+     {"text": "WHAT IF...", "x": 0.5, "y": 0.22, "size": 120, "color": "#ffd600", "anim": "pop"}]},
+  {"say": "First, the night sky goes dark. No moonlight. Just stars.", "mood": "shock", "items": [
+     {"planet": "earth", "r": 240, "x": 0.5, "y": 0.40, "anim": "float"},
+     {"planet": "moon", "r": 80, "x": 0.82, "y": 0.27, "anim": "shrink"}]},
+  {"say": "Then the oceans change. The Moon creates most of our tides. Without it, tides shrink to about one third.", "items": [
+     {"emoji": "🌊", "s": 460, "x": 0.5, "y": 0.38, "anim": "pop+float"},
+     {"text": "TIDES: -66%", "x": 0.5, "y": 0.18, "size": 110, "color": "#ff5a5a", "anim": "pop", "delay": 2.5}]},
+  {"say": "Tide pools, crabs, and shorebirds that depend on them would struggle.", "mood": "sad", "items": [
+     {"emoji": "🦀", "s": 300, "x": 0.3, "y": 0.40, "anim": "pop+float"},
+     {"emoji": "🐚", "s": 240, "x": 0.72, "y": 0.33, "anim": "pop+float", "delay": 0.6},
+     {"emoji": "🐦", "s": 220, "x": 0.68, "y": 0.47, "anim": "pop+float", "delay": 1.2}]},
+  {"say": "Corals that spawn by the full moon? They'd lose their calendar.", "items": [
+     {"emoji": "🪸", "s": 420, "x": 0.5, "y": 0.40, "anim": "pop+pulse"},
+     {"emoji": "❓", "s": 160, "x": 0.76, "y": 0.26, "anim": "pop+float", "delay": 1.2}]},
+  {"say": "But the scariest part is slow. The Moon keeps Earth's tilt steady. Without it, over millions of years, our axis could wobble wildly.", "mood": "shock", "fx": "shake", "items": [
+     {"planet": "earth", "r": 260, "x": 0.5, "y": 0.40, "anim": "spin"}]},
+  {"say": "Ice ages. Scorching summers. Total climate chaos.", "fx": "flash", "items": [
+     {"emoji": "🥶", "s": 300, "x": 0.3, "y": 0.38, "anim": "pop+shake"},
+     {"emoji": "🔥", "s": 300, "x": 0.7, "y": 0.38, "anim": "pop+shake", "delay": 0.5}]},
+  {"say": "So tonight, look up, and thank the Moon. Follow for a new what if every day!", "items": [
+     {"planet": "earth", "r": 220, "x": 0.5, "y": 0.42, "anim": "pop+float"},
+     {"planet": "moon", "r": 80, "x": 0.82, "y": 0.27, "anim": "pop+float", "delay": 0.4}]}
+ ]
+}
