@@ -1,0 +1,12 @@
+{"shots": [
+ {"env": "forest", "say": "Leo had one question he just couldn't stop asking.", "leo": {"x": 0.40, "y": 0.70, "look_up": [0, 1]}, "zoom": [1.0, 1.06]},
+ {"env": "forest", "say": "What would happen... if the Moon disappeared?", "leo": {"x": 0.40, "y": 0.70, "look_up": 1}, "zoom": [1.06, 1.14], "pan": [0.2, 0.5]},
+ {"env": "forest", "say": "One blink, and it was gone. The night turned darker than ever.", "moon": [1, 0], "leo": {"x": 0.40, "y": 0.70, "look_up": 1, "wide": [0, 1]}, "zoom": [1.14, 1.0], "pan": [0.5, 0.0]},
+ {"env": "beach", "say": "Leo ran to the sea. The Moon's gravity pulls on our oceans. It's what makes the tides roll in and out.", "moon": 1, "tide": 1, "leo": {"x": 0.72, "y": 0.80, "h": 500, "facing": -1}, "zoom": [1.0, 1.08]},
+ {"env": "beach", "say": "But without the Moon, the tides would shrink to about a third.", "moon": [1, 0], "tide": [1, 0.33], "leo": {"x": 0.72, "y": 0.80, "h": 500, "facing": -1, "wide": [0, 1]}, "zoom": [1.08, 1.14]},
+ {"env": "tidepool", "say": "Tide pools would stop refilling, and the little creatures living there would struggle.", "water": [1, 0.15], "leo": {"x": 0.80, "y": 0.80, "h": 480, "facing": -1, "down": 1, "lantern": false}, "zoom": [1.0, 1.1]},
+ {"env": "space", "say": "Then Leo imagined the scariest part. The Moon keeps Earth's tilt steady. Without it, over millions of years, our planet could wobble wildly.", "wobble": [0, 28], "leo": {"x": 0.24, "y": 0.86, "h": 380, "float": true, "look_up": 1}, "zoom": [1.0, 1.1], "pan": [-0.2, 0.2]},
+ {"env": "chaos", "say": "Ice ages. Scorching summers.", "wobble": 28, "leo": {"x": 0.24, "y": 0.86, "h": 380, "float": true, "wide": 1}, "zoom": [1.1, 1.18]},
+ {"env": "forest", "say": "Leo blinked, and looked up. The Moon was still there. And now he knew how much we need it.", "moon": [0, 1], "leo": {"x": 0.40, "y": 0.70, "look_up": 1}, "zoom": [1.1, 1.0]},
+ {"env": "forest", "say": "What should Leo wonder about next? Tell us in the comments!", "leo": {"x": 0.40, "y": 0.70, "look_up": [1, 0]}, "zoom": [1.0, 1.05], "pause": 0.9}
+]}

@@ -64,7 +64,7 @@ def fog_band(y, h, color, alpha):
 # ------------------------------------------------------------------ character (painterly Leo)
 SKIN = (238, 214, 192); HAIR = (40, 26, 22); CAPE = (236, 138, 36); CAPE_DK = (176, 88, 26); CAPE_LT = (255, 186, 80)
 
-def draw_leo(t, h=440, look_up=0.0):
+def draw_leo(t, h=440, look_up=0.0, wide=0.0, down=0.0, lantern=True):
     U = h * 2 / 100; S = int(110 * U); im = Image.new("RGBA", (S, S), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
     cx, foot = S * 0.55, S - 4 * U
     wind = lambda k, f=1.0: math.sin(t * 3.2 * f + k)
@@ -90,11 +90,13 @@ def draw_leo(t, h=440, look_up=0.0):
     hx, hy = cx - 24 * U, sh_y + 16 * U
     d.line((cx - 7 * U, sh_y + 6 * U, cx - 16 * U, sh_y + 14 * U, hx, hy), fill=CAPE, width=int(5 * U), joint="curve")
     d.ellipse((hx - 2.4 * U, hy - 2.4 * U, hx + 2.4 * U, hy + 2.4 * U), fill=SKIN)
-    sw = math.sin(t * 2.4) * 2 * U
-    lx, ly = hx + sw * 0.4, hy + 9 * U
-    d.line((hx, hy, lx, ly - 4 * U), fill=(60, 40, 30), width=int(0.9 * U))
-    d.rounded_rectangle((lx - 3.5 * U, ly - 4 * U, lx + 3.5 * U, ly + 5 * U), int(1.5 * U), fill=(255, 214, 120), outline=(70, 46, 30), width=int(0.9 * U))
-    d.rectangle((lx - 4 * U, ly - 5 * U, lx + 4 * U, ly - 3.6 * U), fill=(70, 46, 30))
+    lx, ly = hx, hy
+    if lantern:
+        sw = math.sin(t * 2.4) * 2 * U
+        lx, ly = hx + sw * 0.4, hy + 9 * U
+        d.line((hx, hy, lx, ly - 4 * U), fill=(60, 40, 30), width=int(0.9 * U))
+        d.rounded_rectangle((lx - 3.5 * U, ly - 4 * U, lx + 3.5 * U, ly + 5 * U), int(1.5 * U), fill=(255, 214, 120), outline=(70, 46, 30), width=int(0.9 * U))
+        d.rectangle((lx - 4 * U, ly - 5 * U, lx + 4 * U, ly - 3.6 * U), fill=(70, 46, 30))
     # head (tilts up toward the moon)
     hcx, hcy = cx + 1 * U, sh_y - 11 * U
     hd = Image.new("RGBA", (int(40 * U), int(40 * U)), (0, 0, 0, 0)); hdd = ImageDraw.Draw(hd); c = 20 * U
@@ -107,14 +109,14 @@ def draw_leo(t, h=440, look_up=0.0):
         a = math.radians(170 + i * 24); r = 5.5 * U
         bx, by = c + math.cos(a) * 11 * U, c + math.sin(a) * 11.5 * U - 1 * U
         hdd.ellipse((bx - r, by - r, bx + r, by + r), fill=HAIR)
-    ey = c + 1 * U - look_up * 1.5 * U
+    ey = c + 1 * U - look_up * 1.5 * U + down * 1.8 * U
     for s in (-1, 1):
         ex = c + s * 4.4 * U + 1 * U + look_up * 1.8 * U
-        hdd.ellipse((ex - 1.3 * U, ey - 1.7 * U, ex + 1.3 * U, ey + 1.7 * U), fill=(30, 20, 20))
+        ew = 1 + 0.6 * wide; hdd.ellipse((ex - 1.3 * U * ew, ey - 1.7 * U * ew, ex + 1.3 * U * ew, ey + 1.7 * U * ew), fill=(30, 20, 20))
         hdd.ellipse((ex - 0.6 * U + 0.4 * U, ey - 1.2 * U, ex + 0.1 * U + 0.4 * U, ey - 0.4 * U), fill=(255, 255, 255))
         hdd.ellipse((ex - 2.4 * U, ey + 3 * U, ex + 1.6 * U, ey + 5 * U), fill=(240, 150, 140))
     hdd.ellipse((c - 1.2 * U + 1 * U, c + 6.5 * U, c + 1.2 * U + 1 * U, c + 8.5 * U), fill=(150, 60, 60))
-    hd = hd.rotate(10 * look_up + math.sin(t * 1.1) * 2, resample=Image.BICUBIC, center=(c, c + 10 * U))
+    hd = hd.rotate(10 * look_up - 12 * down + math.sin(t * 1.1) * 2, resample=Image.BICUBIC, center=(c, c + 10 * U))
     im.alpha_composite(hd, (int(hcx - c), int(hcy - c)))
     d.ellipse((cx - 7 * U, sh_y - 3 * U, cx + 7 * U, sh_y + 4 * U), fill=CAPE_LT)  # collar
     im = im.resize((S // 2, S // 2), Image.LANCZOS).filter(ImageFilter.GaussianBlur(0.6))
