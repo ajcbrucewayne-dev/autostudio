@@ -1,0 +1,7 @@
+{"lines": [
+ {"say": "Hey! See the Moon up there?", "act": "look_up"},
+ {"say": "Its gravity is pulling on the whole ocean, right now.", "act": "tide_start"},
+ {"say": "That's what makes the tide come in. Watch!", "act": "point"},
+ {"say": "Whoa, whoa, whoa! It's at my feet!", "act": "jump"},
+ {"say": "So what happens if the Moon disappears? Follow, and find out!", "act": "wave"}
+]}
