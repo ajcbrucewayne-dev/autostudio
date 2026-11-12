@@ -1,0 +1,6 @@
+{"shots": [
+ {"env": "space", "moon": "on", "say": "The Moon's gravity pulls on Earth's oceans, stretching them into a bulge that follows the Moon around the planet."},
+ {"env": "beach", "moon": "on", "say": "As that bulge sweeps over the coast, the sea climbs up the beach. That's high tide."},
+ {"env": "space", "moon": "vanish", "say": "Now... remove the Moon."},
+ {"env": "beach", "moon": "off", "say": "The bulge flattens, and the tides shrink to about a third.", "pause": 1.0}
+]}
