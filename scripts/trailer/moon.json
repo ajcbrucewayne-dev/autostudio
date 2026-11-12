@@ -1,0 +1,17 @@
+{"voice": "am_onyx", "speed": 0.88, "shots": [
+ {"card": "ONE NIGHT", "hit": true, "say": "One night... | without any warning..."},
+ {"scene": "night", "p": {"moon": [1, 0], "moon_t": [0.35, 0.8]}, "zoom": [1.0, 1.15], "pan": [0.2, -0.3],
+  "blip": {"x": 0.64, "y": 0.62, "size": 280, "pose": "look_up", "then": [[2.0, "shock"]]}, "say": "the Moon... | vanished."},
+ {"scene": "beach", "p": {"amp": [1, 0.33], "moon": 0, "amp_t": [0.2, 0.9], "speed": 1.6}, "zoom": [1.1, 1.0],
+  "blip": {"x": 0.6, "y": 0.51, "size": 220, "pose": "point", "then": [[3.2, "shock"]]}, "say": "The oceans felt it first. | The tides... | shrank to a third."},
+ {"scene": "tidepool", "p": {"water": [1, 0.1], "heat": [0, 1]}, "zoom": [1.0, 1.12],
+  "blip": {"x": 0.8, "y": 0.62, "size": 230, "pose": "sad", "facing": -1}, "say": "Tide pools... | dried in the sun."},
+ {"card": "BUT THAT WAS\nONLY THE\nBEGINNING", "hit": true, "say": "But that... | was only the beginning."},
+ {"scene": "tilt", "p": {"wobble": [4, 32], "wobble_t": [0.2, 1.0]}, "zoom": [1.0, 1.1], "shake": true,
+  "blip": {"x": 0.2, "y": 0.77, "size": 220, "pose": "scared"}, "say": "Over millions of years, | Earth's tilt... | would begin to wobble."},
+ {"scene": "chaos", "hit": true, "zoom": [1.05, 1.15], "shake": true,
+  "blip": {"x": 0.15, "y": 0.75, "size": 220, "pose": "scared", "move": 0.7}, "say": "Ice ages. | Scorching summers."},
+ {"card": "WHAT IF", "sub": "THE MOON VANISHED", "hit": true, "say": "What if... | the Moon vanished?", "min": 3.2},
+ {"scene": "orbit", "p": {"moon": [0, 1], "moon_t": [0, 0.4], "speed": 0.8}, "zoom": [1.12, 1.0],
+  "blip": {"x": 0.5, "y": 0.76, "size": 240, "pose": "cheer"}, "say": "Follow... | for the full story."}
+]}
