@@ -20,6 +20,6 @@ def main(script, out):
         w0 = max(0, int(s["t0"] * render.SR) - len(wh) // 2); sfx[w0:w0 + len(wh)] += wh[:n - w0]
     mix = vo + render.synth_music("whatif", n) * 0.10 + sfx * 0.12
     sf.write(os.path.join(out, "audio.wav"), (mix / np.abs(mix).max() * 0.9).astype(np.float32), render.SR)
-    json.dump({"fps": FPS3, "shots": shots}, open(os.path.join(out, "timing.json"), "w"), indent=1)
+    json.dump({**{k: v for k, v in sc.items() if k != "shots"}, "fps": FPS3, "shots": shots}, open(os.path.join(out, "timing.json"), "w"), indent=1)
     print([(s["env"], s["frames"]) for s in shots], "total s", round(t, 1))
 if __name__ == "__main__": main(sys.argv[1], sys.argv[2])

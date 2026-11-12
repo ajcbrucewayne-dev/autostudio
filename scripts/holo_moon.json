@@ -1,0 +1,8 @@
+{"continuous": true, "bloom": true, "shots": [
+ {"env": "book", "beat": "intro", "say": "Leo found a strange old book in the attic. The moment he opened it... the story leapt right off the page.", "pause": 1.4},
+ {"env": "book", "beat": "earth", "say": "Every night, the Moon's gravity tugs on Earth's oceans, pulling the water into a bulge that follows the Moon around the planet.", "pause": 0.6},
+ {"env": "book", "beat": "beach", "say": "Wherever that bulge passes, the sea climbs up the shore. That's high tide.", "pause": 0.8},
+ {"env": "book", "beat": "vanish", "say": "But what if the Moon... just vanished?", "pause": 1.6},
+ {"env": "book", "beat": "after", "say": "The bulge would flatten. Tides would shrink to about a third. And without the Moon to steady it, Earth's tilt could start to wobble.", "pause": 1.0},
+ {"env": "book", "beat": "end", "say": "So tonight, look up and say thanks. The Moon is quietly holding our world together.", "pause": 1.6}
+]}
