@@ -480,4 +480,4 @@ if "--probe" in a:
 if STILL:
     sc.frame_start = sc.frame_end = STILL; sc.frame_set(STILL); sc.render.filepath = f"{OUT}/still_{STILL}.jpg"; bpy.ops.render.render(write_still=True)
 else:
-    sc.frame_start, sc.frame_end = G[SI] + 1, G[SI + 1]; sc.render.filepath = f"{OUT}/f_"; bpy.ops.render.render(animation=True)
+    sc.frame_start, sc.frame_end = G[SI] + 1, G[SI + 1]; sc.render.filepath = f"{OUT}/f_"; sc.render.use_overwrite = False; bpy.ops.render.render(animation=True)
