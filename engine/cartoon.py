@@ -288,6 +288,7 @@ LEO_FACES = {  # eye scale, pupil scale, brow lift (+ up), brow tilt (+ worried)
     "happy": (1.0, 1.0, 0, 0, ("smile", 1.0)), "shock": (1.25, 0.7, 18, 0, ("o", 1.3)), "curious": (1.0, 1.0, 12, -0.4, ("small", 1.0)),
     "scared": (1.25, 0.6, 14, 1.0, ("wobble", 1.0)), "sad": (0.95, 1.0, 0, 1.0, ("frown", 1.0)), "wow": (1.15, 1.1, 16, 0, ("grin", 1.2)),
     "smirk": (0.9, 1.0, 4, -0.6, ("smirk", 1.0)), "worried": (1.05, 0.9, 8, 0.8, ("flat", 1.0)),
+    "hold": (1.2, 0.8, 14, 0.7, ("puff", 1.0)), "gasp": (1.15, 0.8, 18, 0.3, ("o", 1.6)),
 }
 
 def leo(c, x, y, s, pose="idle", face="happy", t=0.0, ow=8, look=(0, 0), bob=True, wave=False, colors=None, mirror=False):
@@ -348,6 +349,11 @@ def leo(c, x, y, s, pose="idle", face="happy", t=0.0, ow=8, look=(0, 0), bob=Tru
         c.move_to(-40, my); [c.line_to(-40 + i * 10, my + (6 if i % 2 else -6)) for i in range(9)]; c.set_source_rgb(*OUT); c.set_line_width(ow); c.stroke()
     elif mk == "smirk": c.move_to(-30, my + 4); c.curve_to(0, my + 14, 25, my + 5, 40, my - 14); c.set_source_rgb(*OUT); c.set_line_width(ow * 1.2); c.stroke()
     elif mk == "small": c.arc(0, my, 14, 0, 2 * math.pi); fsl(rgb("#5a1414"), ow * 0.7)
+    elif mk == "puff":  # holding breath: puffed cheeks + pressed lips
+        for sx in (-1, 1):
+            c.new_path(); c.arc(sx * 98, hy + 60, 52, 0, 2 * math.pi); fsl(skin, ow * 0.7)
+            c.new_path(); c.arc(sx * 98, hy + 66, 24, 0, 2 * math.pi); c.set_source_rgba(0.9, 0.35, 0.3, 0.45); c.fill()
+        c.new_path(); c.move_to(-26, my); c.curve_to(-10, my + 8, 10, my + 8, 26, my); c.set_source_rgb(*OUT); c.set_line_width(ow * 1.3); c.stroke()
     else: c.move_to(-30, my); c.line_to(30, my); c.set_source_rgb(*OUT); c.set_line_width(ow * 1.2); c.stroke()
     if face in ("scared", "worried"):  # sweat drop
         u = (t * 0.8) % 1; dx, dy = 140, hy - 60 + u * 60
