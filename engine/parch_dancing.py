@@ -11,8 +11,8 @@ from parchment import (W, H, FPS, SR, INK, RED, SEPIA, clamp, ease, ease_out, In
 
 VOICE, SPEED = "bm_george", 1.0
 BEATS = [
-    ("cold", "This woman danced for days... and couldn't stop. Then her whole city caught it.", 0.3),
-    ("rewind", "Let's go back.", 0.1),
+    ("cold", "Four hundred people couldn't stop dancing... and some danced until they dropped.", 0.2),
+    ("rewind", "And it all started with one woman.", 0.1),
     ("start", "Strasbourg, fifteen eighteen. A woman named Frau Troffea stepped into the street... and began to dance.", 0.0),
     ("days", "No music. No reason. She danced for nearly a week.", 0.0),
     ("spread", "Then others joined her. Thirty-four in a week. By some accounts, four hundred in a month.", 0.0),
@@ -21,9 +21,9 @@ BEATS = [
     ("shrine", "Finally, music was banned, and the dancers were sent to a mountain shrine, in red shoes marked with crosses.", 0.2),
     ("why", "Famine, disease and fear may have pushed the city into mass hysteria.", 0.2),
     ("impact", "Its impact? The doctor Paracelsus blamed the mind, not demons. And Saint Vitus' dance became the old name for a real movement disorder.", 0.2),
-    ("end", "No one knows for sure. Would you have joined? Because it all started... with one woman.", 0.35),
+    ("end", "No one knows for sure. But would you have joined the dance?", 0.6),
 ]
-STAMPS = {"cold": "1518", "start": "STRASBOURG · JULY 1518", "days": "DAYS I – VI", "spread": "IT SPREADS",
+STAMPS = {"start": "STRASBOURG · JULY 1518", "days": "DAYS I – VI", "spread": "IT SPREADS",
           "cure": "THE CURE", "cost": "THE COST", "shrine": "SHRINE OF ST. VITUS", "why": "WHY?", "impact": "THE IMPACT", "end": "THE DANCING PLAGUE"}
 GAP = 0.25
 
@@ -65,9 +65,8 @@ def cam_at(t, keys):
 
 def cams(Wt, B):
     C = {}
-    fx, fy = FACE(540, 1420, 700)
-    C["cold"] = [(0, fx, fy + 40, 2.3), (Wt("cold", "couldn't") - 0.2, fx, fy + 40, 2.15), (Wt("cold", "couldn't") + 0.8, 640, 1000, 1.25),
-                 (Wt("cold", "Then"), 640, 1000, 1.2), (Wt("cold", "city") + 0.6, 540, 960, 1.0)]
+    C["cold"] = [(0, 540, 1180, 1.35), (Wt("cold", "dropped") - 0.3, 520, 1120, 1.5), (Wt("cold", "dropped") + 0.4, 540, 1220, 1.3),
+                 (B["rewind"]["t0"] + 0.2, 540, 1220, 1.3), (B["rewind"]["t1"], 430, 930, 2.0)]
     C["start"] = [(B["start"]["t0"], 540, 960, 1.0), (Wt("start", "woman"), 540, 960, 1.0), (Wt("start", "dance") + 0.8, 540, 1050, 1.35)]
     fx, fy = FACE(540, 1300, 520)
     C["days"] = [(Wt("days"), 540, 960, 1.0), (Wt("days", "week", end=True), fx, fy + 60, 1.9)]
@@ -81,24 +80,29 @@ def cams(Wt, B):
     C["why"] = [(Wt("why"), 540, 960, 1.08), (Wt("why", "mass"), 540, 1010, 1.0)]
     fx, fy = FACE(300, 1300, 500)
     C["impact"] = [(Wt("impact"), fx + 60, fy + 120, 1.5), (Wt("impact", "mind") - 0.2, fx + 60, fy + 120, 1.4), (Wt("impact", "mind") + 0.4, 540, 960, 1.0)]
-    fx, fy = FACE(540, 1420, 700)
-    C["end"] = [(Wt("end"), 540, 960, 1.0), (Wt("end", "Because"), 540, 980, 1.15), (B["end"]["t1"] - 0.15, fx, fy + 40, 2.3)]
+    C["end"] = [(Wt("end"), 540, 960, 1.0), (Wt("end", "joined"), 540, 1000, 1.15), (B["end"]["t1"] - 0.1, 540, 1180, 1.35)]
     return C
 
 class Ctx:  # per-plate drawing context
     def __init__(s, ink, t, t0, K=1.0, a=1.0): s.ink, s.t, s.lt, s.K, s.a = ink, t, t - t0, K, a
     def P(s, start, dur): return clamp((s.t - start) / max(dur, 1e-3)) * s.K
 
+def tableau(ink, t, p_main, p_bodies, a, expr, jitter=1.0, p_woman=None):
+    """Frame-1 image: terrified woman jerking in a dance, hand in hand with a red skeleton, collapsed dancers at her feet."""
+    pm.ground(ink, 1420, p_main, alpha=a)
+    figure(ink, 500, 1465, 290, dance_pose(0, 0, 0), p_bodies, "man", a, rot=-84, expr="dead", t=t, var=5)
+    figure(ink, 620, 1470, 280, dance_pose(0, 0, 0), p_bodies, "woman", a, rot=84, expr="dead", t=t, var=1)
+    sk = dance_pose(t, 2.2, 1.0, 1.5); sk.update(aL=-95 + 15 * math.sin(t * 9), eL=-10)
+    figure(ink, 730, 1420, 620, sk, p_main, "skeleton", a, col=RED)
+    w = dance_pose(t, 0.0, 1.0, 1.6)
+    j = jitter * math.sin(t * 31) * math.sin(t * 7.3)        # involuntary jerks
+    w.update(aR=95 + 20 * math.sin(t * 9), eR=10, head=w["head"] + 14 * j, lean=w["lean"] + 5 * j)
+    figure(ink, 430, 1420, 700, w, p_main if p_woman is None else p_woman, "woman", a, expr=expr, t=t, var=0)
+
 def plate_frenzy(c, Wt):
-    ink, t, a = c.ink, c.t, c.a; tc = Wt("cold", "couldn't"); tcity = Wt("cold", "Then")
-    pm.ground(ink, 1420, c.K, alpha=a)
-    back = [(150, 1180, 300, "man", 0.3, 1), (300, 1230, 320, "woman", 1.7, 4), (790, 1230, 320, "man", 2.6, 5), (950, 1180, 300, "woman", 4.0, 7)]
-    exs = ["trance", "fear", "tired", "trance"]
-    for i, (x, y, h, k, ph, v) in enumerate(back):
-        figure(ink, x, y, h, dance_pose(t, ph, 1.0, 1.25), c.P(tcity + 0.12 * i, 0.6), k, a * 0.8, expr=exs[i], t=t, var=v)
-    figure(ink, 860, 1420, 540, dance_pose(t, 2.2, 1.0, 1.25), c.K, "skeleton", a, col=INK if t < tc else RED)
-    ex = "tired" if t < tc - 0.1 else "pain"
-    figure(ink, 520, 1420, 700, dance_pose(t, 0.0, 0.9, 1.05), c.K, "woman", a, expr=ex, t=t, var=0)
+    ink, t, a = c.ink, c.t, c.a; td = Wt("cold", "dropped")
+    tr = Wt("rewind")
+    tableau(ink, t, c.K, c.K, a, "fear" if t < td - 0.2 else ("pain" if t < tr + 0.6 else "neutral"), p_woman=1.0, jitter=1 - clamp((t - tr) / 0.8))
 
 def plate_street(c, Wt):
     ink, t, a = c.ink, c.t, c.a; t0 = Wt("start")
@@ -299,12 +303,10 @@ def plate_impact(c, Wt):
         ink.text("FEAR SPREADS", 540, 1330, 80, RED, a, p=c.P(ts, 0.6))
 
 def plate_end(c, Wt):
-    ink, t, a = c.ink, c.t, c.a; t0 = Wt("end"); tb = Wt("end", "Because")
-    pm.ground(ink, 1420, c.P(t0, 0.6), alpha=a)
-    figure(ink, 860, 1420, 540, dance_pose(t, 2.2, 1.0, 1.25), c.P(tb, 0.8), "skeleton", a)
-    figure(ink, 520, 1420, 700, dance_pose(t, 0.0, 0.9, 1.05), c.P(t0, 1.0), "woman", a, expr="trance" if t < tb else "tired", t=t, var=0)
-    tq = Wt("end", "Would")
-    ink.text("?", 880, 560, 330, RED, a * (1 - clamp((t - tb) / 0.4)), p=c.P(tq, 0.3))
+    ink, t, a = c.ink, c.t, c.a; t0 = Wt("end"); tj = Wt("end", "joined")
+    tq = Wt("end", "would")
+    tableau(ink, t, c.P(t0, 1.0), c.P(tj, 0.6), a, "trance" if t < tj else "fear")
+    ink.text("?", 880, 520, 300, RED, a * (1 - clamp((t - tj - 0.4) / 0.4)), p=c.P(tq, 0.3))
 
 PLATES = [("cold", plate_frenzy), ("start", plate_street), ("days", plate_days), ("spread", plate_spread), ("cure", plate_cure),
           ("cost", plate_cost), ("shrine", plate_shrine), ("why", plate_why), ("impact", plate_impact), ("end", plate_end)]
@@ -325,8 +327,7 @@ def draw_frame(ink, t, meta, Wt, B):
         a = 1.0 if t < nxt else 0.0; K = 1.0
         if i + 1 < len(PLATES) and PLATES[i + 1][0] == "start": a = 1 - clamp((t - nxt) / FADE)
         if name == "cold":
-            K = 1 - ease(clamp((t - tr) / 1.3)); a = 1.0 if t < tr1 else 0.0
-            if K <= 0.001: continue
+            K = 1 - ease(clamp((t - tr) / 1.3)); a = 1 - clamp((t - tr1) / FADE)
         cx, cy, z = cam_at(t, CAM[name])
         c = ink.ctx; c.save(); c.translate(W / 2, H * 0.5); c.scale(z, z); c.translate(-cx, -cy)
         fn(Ctx(ink, t, st, K, a), Wt); c.restore()
@@ -337,12 +338,20 @@ def draw_frame(ink, t, meta, Wt, B):
         if st - 0.3 <= t <= st + 0.4:
             r = 1400 * (ease_out((t - st + 0.3) / 0.3) if t < st else 1 - ease((t - st) / 0.4))
             pm.blot(ink, 540, 950, r, i)
+    # hook text, on screen from frame 1 (readable on mute)
+    hk_end = B["rewind"]["t0"] + 0.4; tn = B["end"]["t1"]
+    if t < hk_end + 0.3 or t > tn - 0.5:
+        al = 1 - clamp((t - hk_end) / 0.3) if t < hk_end + 0.3 else clamp((t - tn + 0.5) / 0.4)
+        pulse = 1 + 0.03 * math.sin(t * 6)
+        ink.text("400 PEOPLE", W / 2, 215, 118 * pulse, RED, al)
+        ink.text("COULDN'T STOP DANCING", W / 2, 330, 62, INK, al)
     # stamp
     for m in meta:
         s = STAMPS.get(m["name"])
         if not s: continue
         st = m["t0"]; en = m["t1"]
         if m["name"] == "cold": en = B["rewind"]["t0"] + 0.5
+        if m["name"] == "end": en = min(en, B["end"]["t1"] - 0.8)
         if st <= t < en + 0.3:
             al = 1 - clamp((t - en) / 0.3)
             if m["name"] == "cold": pm.stamp(ink, s, 2.0, H * 0.09, 110, al)
@@ -375,7 +384,7 @@ def build_audio(meta, vo, Wt, B):
         pm.place(sfx, pm.quill(1.8, hash(name) % 77), st, 0.35)
     pm.place(sfx, pm.quill(1.2, 5)[::-1].copy(), Wt("rewind"), 0.5)
     pm.place(sfx, pm.thud(42, 2.0), Wt("cost", "never"), 1.0)
-    pm.place(sfx, pm.thud(55, 1.2), Wt("cold", "couldn't") + 0.2, 0.7)
+    pm.place(sfx, pm.thud(50, 1.4), 0.0, 0.9); pm.place(sfx, pm.thud(42, 1.8), Wt("cold", "dropped"), 1.0)
     pm.place(sfx, pm.bell(196, 5.0), Wt("shrine", "shrine"), 0.7)
     pm.place(sfx, pm.thud(60, 0.8), Wt("why", "mass"), 0.5)
     # duck music under voice
@@ -388,7 +397,7 @@ def build_audio(meta, vo, Wt, B):
 def main():
     out = sys.argv[1]; stills = "--stills" in sys.argv
     work = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "out", "parch"); os.makedirs(work, exist_ok=True)
-    meta, vo = build_timeline(os.path.join(work, "dancing_vo4"))
+    meta, vo = build_timeline(os.path.join(work, "dancing_vo5"))
     Wt, B = mk_W(meta); total = len(vo) / SR
     paper = pm.make_paper(); glow = pm.glow_map(); ink = Ink()
     ink.clear(); pm.BOIL_AMP = 0; pm.border(ink); paper = pm.bake(paper, ink); pm.BOIL_AMP = 1.3
