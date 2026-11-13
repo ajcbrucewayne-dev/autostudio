@@ -160,6 +160,28 @@ cam.location = (0.15 + 0.1 * math.sin(FRAME * 0.03), -3.6, 1.35 + 0.05 * math.si
 tgt = empty("Tgt", (0.2, 2.0, 2.0)); tk = cam.constraints.new("TRACK_TO"); tk.target = tgt; tk.track_axis = "TRACK_NEGATIVE_Z"; tk.up_axis = "UP_Y"
 foc = empty("Focus", (0.0, -0.25, 1.6)); cd.dof.focus_object = foc
 
+
+# ---------------- CLAY LOOK (--clay): matte plasticine, thumbprint + tool-mark bumps, miniature tilt-shift lens
+if "--clay" in sys.argv:
+    for m in list(bpy.data.materials):
+        if not m.use_nodes or "Principled BSDF" not in m.node_tree.nodes or m.name in ("bubble", "win", "shine", "flake"): continue
+        nt = m.node_tree; b = nt.nodes["Principled BSDF"]
+        b.inputs["Roughness"].default_value = 0.62; b.inputs["Coat Weight"].default_value = 0.0
+        b.inputs["Subsurface Weight"].default_value = 0.25; b.inputs["Subsurface Scale"].default_value = 0.02
+        c0 = b.inputs["Base Color"].default_value; b.inputs["Base Color"].default_value = (min(1, c0[0] * 1.15), min(1, c0[1] * 1.15), min(1, c0[2] * 1.15), 1)
+        tc = nt.nodes.new("ShaderNodeTexCoord")
+        wv = nt.nodes.new("ShaderNodeTexWave"); wv.wave_type = "RINGS"; wv.inputs["Scale"].default_value = 9; wv.inputs["Distortion"].default_value = 6; wv.inputs["Detail"].default_value = 3
+        nt.links.new(tc.outputs["Object"], wv.inputs["Vector"])
+        vn = nt.nodes.new("ShaderNodeTexNoise"); vn.inputs["Scale"].default_value = 3; vn.inputs["Detail"].default_value = 2
+        nt.links.new(tc.outputs["Object"], vn.inputs["Vector"])
+        mx = nt.nodes.new("ShaderNodeMath"); mx.operation = "MULTIPLY"; nt.links.new(wv.outputs["Fac"], mx.inputs[0]); nt.links.new(vn.outputs["Fac"], mx.inputs[1])
+        bp = nt.nodes.new("ShaderNodeBump"); bp.inputs["Strength"].default_value = 0.35; bp.inputs["Distance"].default_value = 0.02
+        nt.links.new(mx.outputs[0], bp.inputs["Height"]); nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    for o in bpy.data.objects:  # hand-made imperfection: slightly lumpy surfaces
+        if o.type == "MESH" and o.name not in ("Cube",) and len(o.data.vertices) > 200 and "bubble" not in [ms.name for ms in o.data.materials]:
+            d = o.modifiers.new("lumps", "DISPLACE"); tx = bpy.data.textures.new("lump" + o.name, "CLOUDS"); tx.noise_scale = 0.35; d.texture = tx; d.strength = 0.012
+    cd.dof.aperture_fstop = 1.1                                   # very shallow focus = tabletop miniature
+    pv.inputs["Density"].default_value = 0.03
 sc.render.filepath = OUT; t0 = time.time()
 bpy.ops.render.render(write_still=True)
 print(f"RENDERED {OUT} in {time.time() - t0:.1f}s at {SAMPLES} samples")
