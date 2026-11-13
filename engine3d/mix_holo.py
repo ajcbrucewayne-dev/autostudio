@@ -79,6 +79,11 @@ for t in C["flips"]: swish(t)
 for t in C["builds"]: build(t)
 wash(C["tide"][0], C["tide"][1] + 0.8)
 glitch(C["glitch"], 1.0); shatter(C["shatter"]); derez(C["derez"]); thump(C["close"] + 1.25, 0.6)
+if "fizzle" in C: glitch(C["fizzle"], 0.7); derez(C["fizzle"] + 0.6)
+if "drain" in C: wash(C["drain"][0], C["drain"][1])
+if "spawn" in C:
+    for _ in range(18):
+        L = rng.uniform(0.1, 0.3); put(np.sin(2 * np.pi * rng.uniform(1800, 4200) * tt(L)) * np.exp(-tt(L) * 18), C["spawn"] + rng.uniform(0, 2.2), 0.04)
 
 # ---- music: a bit louder, ducked hard right after each shatter (a beat of silence)
 g = np.full(n, 0.11)
