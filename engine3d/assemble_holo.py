@@ -13,7 +13,8 @@ T = json.load(open(os.path.join(d, "timing.json"))); fps = T["fps"]
 CU = json.load(open(os.path.join(d, "cues.json"))); OFF = CU["off"]; NF = CU["film_frames"]
 film = {int(re.findall(r"f_(\d+)", p)[0]): p for p in glob.glob(os.path.join(d, "s*", "f_*.jpg"))}
 assert len(film) >= NF - 2, f"missing frames: {len(film)}/{NF}"
-tv_film = CU["cues"]["shatter"] - 0.15 - OFF
+COLD_SRC = CU["cues"].get("cold_src")  # film source for the cold open (else: the Moon shatter)
+tv_film = CU["cues"]["shatter"] - 0.15 - OFF if "shatter" in CU["cues"] else None
 fidx = lambda ft: min(NF, max(1, int(round(ft * fps)) + 1))
 
 def bloom(im):
@@ -49,7 +50,10 @@ ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "
     "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out], stdin=subprocess.PIPE)
 
 sh = {s["beat"]: s for s in T["shots"]}
-tw = next(w[1] for w in sh["cold"]["words"] if w[0].lower().startswith("vanish"))
+if COLD_SRC is not None:
+    tw = sh["cold"]["t0"]; tv_film = COLD_SRC - OFF
+else:
+    tw = next(w[1] for w in sh["cold"]["words"] if w[0].lower().startswith("vanish"))
 cold_end_film = tv_film + (sh["cold"]["t0"] + sh["cold"]["frames"] / fps - tw)
 pre = sh["cold"]["frames"] + sh["rewind"]["frames"]
 gi = 0

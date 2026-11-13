@@ -67,18 +67,50 @@ def tape_rewind(t0, dur):
     x = np.sign(np.sin(2 * np.pi * np.cumsum(f) / SR)) * 0.3 + 0.5 * np.sin(2 * np.pi * np.cumsum(f * 0.5) / SR)
     put(fade(x, 0.02, 0.2) * 0.9, t0, 0.07); swish(t0, 0.35, 0.5)
 
-# ---- cold open (audio timeline): glitch, shatter on "vanished", then tape rewind
+def thunder(t):  # bright crack + long low rumble
+    no = rng.standard_normal(int(0.25 * SR)); put((no - smoothn(no, 3)) * np.exp(-tt(0.25) * 14), t, 0.45)
+    ru = smoothn(rng.standard_normal(int(3.5 * SR)), 120); ru /= np.abs(ru).max()
+    env = np.minimum(1, tt(3.5) * 8) * np.exp(-tt(3.5) * 0.9) * (0.7 + 0.3 * np.sin(2 * np.pi * 1.3 * tt(3.5)))
+    put(ru * env, t, 0.9); put(np.sin(2 * np.pi * 42 * tt(2.5)) * np.exp(-tt(2.5) * 1.6), t, 0.35)
+def ticks(t0, t1):  # time-lapse clock: ticks speeding up
+    t = t0; d = 0.16
+    while t < t1:
+        put(np.sin(2 * np.pi * 2600 * tt(0.012)) * np.exp(-tt(0.012) * 300), t, 0.12); t += d; d = max(0.045, d * 0.93)
+def windn(t0, t1):
+    n_ = int((t1 - t0) * SR); x = smoothn(rng.standard_normal(n_), 90); x /= np.abs(x).max()
+    put(fade(x * (0.6 + 0.4 * np.sin(2 * np.pi * 0.35 * tt(t1 - t0))), 0.6, 0.6), t0, 0.22)
+def pop(t): put(fade(chirp(700, 1250, 0.12)) * np.exp(-tt(0.12) * 12), t, 0.12)
+def sonic(t, g=0.6):  # N-wave double crack
+    for dt_ in (0.0, 0.11):
+        no = rng.standard_normal(int(0.08 * SR)); put(no * np.exp(-tt(0.08) * 40), t + dt_, g * 0.45)
+        put(np.sin(2 * np.pi * 55 * tt(0.6)) * np.exp(-tt(0.6) * 6), t + dt_, g * 0.5)
+def whoosh(t, dur=0.6):
+    no = rng.standard_normal(int(dur * SR)); no = smoothn(no, 8) - smoothn(no, 60); e = np.sin(np.linspace(0, np.pi, len(no))) ** 3; put(no * e, t, 0.9)
+
+# ---- cold open (audio timeline)
 sh = {s["beat"]: s for s in T["shots"]}; FPS = T["fps"]
 cold, rew = sh["cold"], sh["rewind"]
-tw = next(w[1] for w in cold["words"] if w[0].lower().startswith("vanish"))
-glitch(tw - 1.0, 1.0); shatter(tw + 0.15)
+DUCK = [tuple(w) for w in C.get("duck", [])]
+tw_ = [w[1] for w in cold["words"] if w[0].lower().startswith("vanish")]
+if tw_:  # Moon: glitch + shatter on "vanished"
+    tw = tw_[0]; glitch(tw - 1.0, 1.0); shatter(tw + 0.15)
+else:  # silent flash... then the delayed thunder lands as the tape rewinds
+    tw = None; t_end = cold["t0"] + cold["frames"] / FPS; thunder(t_end - 0.5); DUCK.append((cold["t0"] + 0.2, t_end - 0.5))
 r0 = rew["t0"] + 0.3; tape_rewind(r0 - 0.15, rew["frames"] / FPS)
 # ---- main story
 hum(C["beam_on"], C["beam_off"] + 0.5); thump(C["open"] + 1.15, 0.45); swish(C["open"] + 0.2, 0.3, 0.8)
 for t in C["flips"]: swish(t)
 for t in C["builds"]: build(t)
-wash(C["tide"][0], C["tide"][1] + 0.8)
-glitch(C["glitch"], 1.0); shatter(C["shatter"]); derez(C["derez"]); thump(C["close"] + 1.25, 0.6)
+if "tide" in C: wash(C["tide"][0], C["tide"][1] + 0.8)
+if "glitch" in C: glitch(C["glitch"], 1.0)
+if "shatter" in C: shatter(C["shatter"])
+derez(C["derez"]); thump(C["close"] + 1.25, 0.6)
+if "thunder" in C: thunder(C["thunder"])
+if "ticks" in C: ticks(*C["ticks"])
+if "wind" in C: windn(*C["wind"])
+for t in C.get("chirps", []): pop(t)
+for t in C.get("booms", []): sonic(t)
+for t in C.get("whooshes", []): whoosh(t)
 if "fizzle" in C: glitch(C["fizzle"], 0.7); derez(C["fizzle"] + 0.6)
 if "drain" in C: wash(C["drain"][0], C["drain"][1])
 if "spawn" in C:
@@ -87,9 +119,10 @@ if "spawn" in C:
 
 # ---- music: a bit louder, ducked hard right after each shatter (a beat of silence)
 g = np.full(n, 0.11)
-for ts in (tw + 0.15, C["shatter"]):
+for ts in [x for x in (tw + 0.15 if tw else None, C.get("shatter")) if x is not None]:
     i0 = int(ts * SR); i1 = min(n, i0 + int(1.6 * SR)); g[i0:i1] = 0.02
     k = min(n, i1 + int(0.8 * SR)); g[i1:k] = np.linspace(0.02, 0.11, k - i1)
+for a_, b_ in DUCK: g[int(a_ * SR):int(b_ * SR)] = 0.012
 g = smoothn(g, 800)
 mix = vo + mus[:n] * g + fx
 mix = np.tanh(mix / np.abs(mix).max() * 1.6) / np.tanh(1.6) * 0.92

@@ -1,0 +1,60 @@
+{
+ "continuous": true,
+ "bloom": true,
+ "shots": [
+  {
+   "env": "cold",
+   "beat": "cold",
+   "say": "What if sound... moved at walking speed?",
+   "pause": 0.9
+  },
+  {
+   "env": "rewind",
+   "beat": "rewind",
+   "say": "Let's rewind.",
+   "pause": 0.2
+  },
+  {
+   "env": "book",
+   "beat": "intro",
+   "say": "Leo opened his book to a brand new chapter.",
+   "pause": 0.6
+  },
+  {
+   "env": "book",
+   "beat": "why",
+   "say": "Sound is just air molecules bumping into each other, like falling dominoes. Normally, that chain races at 343 meters a second. Now slow it down... to a walking pace.",
+   "pause": 0.6
+  },
+  {
+   "env": "book",
+   "beat": "talk",
+   "say": "Talk to a friend across the room, and your words arrive two seconds late. Shout across a football field... they'd hear you over a minute later.",
+   "pause": 0.7
+  },
+  {
+   "env": "book",
+   "beat": "storm",
+   "say": "A storm two kilometers away? You'd see the lightning... and hear the thunder twenty-four minutes later.",
+   "pause": 2.2
+  },
+  {
+   "env": "book",
+   "beat": "wind",
+   "say": "Even a gentle breeze would outrun sound. Anyone upwind of you... couldn't hear you at all.",
+   "pause": 0.7
+  },
+  {
+   "env": "book",
+   "beat": "boom",
+   "say": "And anyone who jogs would break the sound barrier. Runners, bikes, cars... sonic booms all day long.",
+   "pause": 1.0
+  },
+  {
+   "env": "book",
+   "beat": "end",
+   "say": "The wildest part? Scientists have really made sound this slow, in clouds of atoms colder than outer space. Could you survive a day in this world?",
+   "pause": 1.8
+  }
+ ]
+}
