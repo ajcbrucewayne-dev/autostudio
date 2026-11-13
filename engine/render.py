@@ -369,6 +369,7 @@ def render(script_path, out_dir=None):
     voice = []; t = 0.35; timeline = []
     for s in sc["scenes"]:
         spk = s.get("speaker", "N"); vname, speed = cfg["voices"].get(spk, cfg["voices"]["N"])
+        if "voice" in sc: vname, speed = sc["voice"]
         if s.get("say"):
             a = tts(s["say"], vname, speed * s.get("speed", 1.0))
         else:

@@ -1,0 +1,12 @@
+{
+ "channel": "whatif", "host": false, "caption_y": 0.92, "voice": ["af_heart", 1.0],
+ "title": "Demo: How Compound Interest Works (business explainer sample)",
+ "scenes": [
+  {"say": "What if a hundred dollars a month could turn into over a hundred and twenty thousand?", "scene": "bz_hook"},
+  {"say": "With simple interest, you only earn on the money you put in.", "scene": "bz_simple"},
+  {"say": "But with compound interest, your earnings start earning too. Like a snowball rolling downhill.", "scene": "bz_compound"},
+  {"say": "Invest a hundred dollars a month for thirty years, at seven percent. You put in thirty-six thousand... and end up with about a hundred and twenty-two thousand.", "scene": "bz_chart"},
+  {"say": "Wait ten years to start, and you'd end with only about fifty-two thousand.", "scene": "bz_late"},
+  {"say": "The secret ingredient is time. Start small. Start today.", "scene": "bz_cta"}
+ ]
+}
