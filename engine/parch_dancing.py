@@ -20,10 +20,11 @@ BEATS = [
     ("cost", "In the summer heat, dancers collapsed from exhaustion. And some, it's said... never got up.", 0.9),
     ("shrine", "At last, the city banned music, and sent the dancers to a mountain shrine, in red shoes marked with holy crosses.", 0.2),
     ("why", "Slowly, the dancing stopped. Historians think famine, disease and fear pushed a desperate city into mass hysteria.", 0.3),
+    ("impact", "Its impact? Years later, the doctor Paracelsus blamed the mind, not demons. Saint Vitus' dance became the old name for a real movement disorder. And scientists still study fifteen eighteen, to learn how fear spreads from mind to mind.", 0.3),
     ("end", "But no one knows for sure. Would you have joined the dance?", 1.6),
 ]
 STAMPS = {"cold": "1518", "start": "STRASBOURG · JULY 1518", "days": "DAYS I – VI", "spread": "IT SPREADS",
-          "cure": "THE CURE", "cost": "THE COST", "shrine": "SHRINE OF ST. VITUS", "why": "WHY?", "end": "THE DANCING PLAGUE"}
+          "cure": "THE CURE", "cost": "THE COST", "shrine": "SHRINE OF ST. VITUS", "why": "WHY?", "impact": "THE IMPACT", "end": "THE DANCING PLAGUE"}
 GAP = 0.25
 
 # ------------------------------------------------------------------ timeline (voice)
@@ -74,7 +75,7 @@ def plate_street(c, Wt):
     pm.ground(ink, gy, c.P(t0, 0.8), 60, W - 60, a, cobbles=False)
     for i, (x, w, h) in enumerate([(70, 120, 170), (200, 105, 210), (315, 130, 160), (455, 110, 200), (575, 100, 150)]):
         pm.house(ink, x, gy, w, h, c.P(t0 + 0.3 + i * 0.35, 1.3), a * 0.9)
-    pm.cathedral(ink, 830, gy, 0.72, c.P(t0 + 1.2, 2.6), a * 0.9)
+    pm.cathedral(ink, 760, gy, 0.66, c.P(t0 + 1.2, 2.6), a * 0.9)
     pm.sun(ink, 190, 360, 62, c.P(t0 + 0.8, 1.2), t, a)
     pm.ground(ink, 1400, c.P(Wt("start", "Frau"), 0.8), alpha=a)
     tw = Wt("start", "dance")
@@ -103,7 +104,7 @@ def plate_days(c, Wt):
 
 CROWD = [(540, 1330, 330, "woman", 0.0)]
 rng = np.random.default_rng(5)
-for row, (y, h, n) in enumerate([(1330, 300, 6), (1080, 230, 7), (880, 180, 8), (720, 140, 9)]):
+for row, (y, h, n) in enumerate([(1330, 290, 6), (1120, 200, 7), (950, 150, 8), (810, 115, 9)]):
     for j in range(n):
         x = 110 + (W - 220) * (j + 0.5 * (row % 2)) / (n - 0.5 + 0.5 * (row % 2))
         if row == 0 and abs(x - 540) < 120: continue
@@ -117,11 +118,11 @@ def plate_spread(c, Wt):
     for i, (x, y, h, k, ph) in enumerate(sorted(CROWD, key=lambda s: -s[1])):
         if i == 0: st = t0
         else: st = t0 + 0.6 + (t34 + 1.5 - t0 - 0.6) * (i / (n - 1)) ** 0.8
-        figure(ink, x, y, h, dance_pose(t, ph, 1.0, 1.1), c.P(st, 0.5), k, a * (0.75 + 0.25 * (y > 1000)))
+        figure(ink, x, y, h, dance_pose(t, ph, 1.0, 1.1), c.P(st, 0.5), k, a * (0.55 + 0.45 * clamp((y - 800) / 500)))
     pm.ground(ink, 1330, c.P(t0, 0.6), alpha=a)
-    ink.text("34", 540, 400, 170, INK, a, p=c.P(t34, 0.25) * 1.0)
-    ink.line((420, 420), (660, 360), 10, c.P(t400 - 0.1, 0.3), RED, a)
-    ink.text("400 ?", 540, 580, 150, RED, a, p=c.P(t400, 0.6))
+    ink.text("34", 540, 420, 170, INK, a, p=c.P(t34, 0.25) * 1.0)
+    ink.line((420, 440), (660, 380), 10, c.P(t400 - 0.1, 0.3), RED, a)
+    ink.text("400 ?", 540, 600, 150, RED, a, p=c.P(t400, 0.6))
 
 def doctor_pose(t):
     p = dict(STAND); p.update(aR=95, eR=-60, aL=-20, eL=-30, head=-6); return p
@@ -215,6 +216,56 @@ def plate_why(c, Wt):
     ink.text("MASS HYSTERIA", 540, 1330, 92, RED, a, p=c.P(th, 0.7))
     ink.line((170, 1385), (910, 1385), 6, c.P(th + 0.7, 0.4), RED, a)
 
+def plate_impact(c, Wt):
+    ink, t, a = c.ink, c.t, c.a; t0 = Wt("impact"); tB = Wt("impact", "saint"); tC = Wt("impact", "scientists")
+    aA = a * (1 - clamp((t - tB + 0.3) / 0.4)); aB = a * (1 - clamp((t - tC + 0.3) / 0.4))
+    if aA > 0.01:
+        pose = dict(STAND); pose.update(aR=75, eR=-85, aL=-15, eL=-20, head=-5)
+        tp = Wt("impact", "doctor")
+        pm.ground(ink, 1300, c.P(t0, 0.6), 80, 560, aA, cobbles=False)
+        figure(ink, 300, 1300, 500, pose, c.P(tp - 0.3, 1.0), "man", aA)
+        bk = [(330, 940), (420, 925), (425, 1000), (335, 1015)]
+        ink.fill(bk, SEPIA, 0.6 * aA * c.P(tp + 0.4, 0.4)); ink.stroke(bk + [bk[0]], 3, c.P(tp + 0.4, 0.4), INK, aA, taper=False, dense=False)
+        ink.text("PARACELSUS", 300, 1360, 44, INK, aA, p=c.P(Wt("impact", "Paracelsus"), 0.6))
+        tm = Wt("impact", "mind"); td = Wt("impact", "demons")
+        ink.text("THE MIND", 790, 720, 74, INK, aA, p=c.P(tm - 0.3, 0.4))
+        ink.line((620, 770), (960, 770), 4, c.P(tm + 0.4, 0.3), INK, aA)
+        ink.text("DEMONS", 790, 900, 74, INK, aA, p=c.P(td - 0.6, 0.3))
+        ink.line((610, 900), (970, 880), 9, c.P(td + 0.1, 0.3), RED, aA)
+        for i, (x, y) in enumerate([(640, 960), (940, 960)]):  # little horns on the struck-out demons
+            ink.stroke([(x - 10, y - 110), (x, y - 140), (x + 12, y - 112)], 4, c.P(td - 0.1, 0.3), INK, aA * 0.8)
+    if t > tB - 0.3 and aB > 0.01:
+        pb = c.P(tB - 0.3, 0.7)
+        L = [(170, 720), (530, 690), (530, 1220), (170, 1250)]; Rp = [(530, 690), (910, 720), (910, 1250), (530, 1220)]
+        for pg in (L, Rp):
+            ink.fill(pg, SEPIA, 0.18 * aB * pb); ink.stroke(pg + [pg[0]], 4, pb, INK, aB, taper=False, dense=False)
+        ink.hatch([(500, 692), (530, 690), (530, 1220), (500, 1222)], pb, 90, 6, 1.5, INK, 0.6 * aB)
+        tv = Wt("impact", "Vitus")
+        ink.text("ST. VITUS'", 350, 800, 50, RED, aB, p=c.P(tv - 0.2, 0.5))
+        ink.text("DANCE", 350, 870, 58, RED, aB, p=c.P(tv + 0.3, 0.4))
+        for i in range(7):
+            y = 960 + i * 38; ink.stroke([(205, y), (300, y + 3), (420, y - 2), (495, y + 2)], 2.2, c.P(tv + 0.5 + i * 0.12, 0.3), INK, aB * 0.6)
+        figure(ink, 720, 1150, 330, dance_pose(t, 1.0, 1, 1.1), c.P(Wt("impact", "movement") - 0.3, 0.8), "woman", aB)
+        for i in range(3):
+            y = 760 + i * 36; ink.stroke([(580, y), (700, y + 2), (860, y - 2)], 2.2, c.P(tv + 0.8 + i * 0.12, 0.3), INK, aB * 0.6)
+    if t > tC - 0.3:
+        ts = Wt("impact", "spreads")
+        heads = [(170, 1020), (350, 880), (540, 820), (730, 880), (910, 1020)]
+        for i, (x, y) in enumerate(heads):
+            ph = c.P(tC + i * 0.18, 0.4)
+            ink.circle(x, y, 62, 4, ph, INK, a)
+            for sx in (-0.35, 0.35): ink.dot(x + sx * 62, y - 6, 6, INK, a * ph)
+            ink.circle(x, y + 26, 11, 3, ph, INK, a)  # frightened "o" mouth
+            ink.stroke([(x - 70, y + 70), (x - 40, y + 140), (x + 40, y + 140), (x + 70, y + 70)], 4, ph, INK, a)
+            if i < 4:
+                x2, y2 = heads[i + 1]; pl = c.P(ts - 0.2 + i * 0.35, 0.35)
+                ink.stroke([(x + 60, y - 10), ((x + x2) / 2, min(y, y2) - 70), (x2 - 60, y2 - 10)], 5, pl, RED, a)
+            fear = clamp((t - (ts - 0.2 + (i - 1) * 0.35 + 0.35)) / 0.3) if i > 0 else clamp((t - ts + 0.4) / 0.3)
+            if fear > 0:
+                for k in range(5):  # red fear scribble around the head
+                    an = k * 1.25 + t * 3; ink.line((x + math.cos(an) * 75, y + math.sin(an) * 75), (x + math.cos(an) * 95, y + math.sin(an) * 95), 4, fear * c.K, RED, a)
+        ink.text("FEAR SPREADS", 540, 1330, 80, RED, a, p=c.P(ts, 0.6))
+
 def plate_end(c, Wt):
     ink, t, a = c.ink, c.t, c.a; t0 = Wt("end")
     pm.ground(ink, 1330, c.P(t0, 0.6), alpha=a)
@@ -223,7 +274,7 @@ def plate_end(c, Wt):
     ink.text("?", 860, 560, 330, RED, a, p=c.P(tq, 0.3))
 
 PLATES = [("cold", plate_frenzy), ("start", plate_street), ("days", plate_days), ("spread", plate_spread), ("cure", plate_cure),
-          ("cost", plate_cost), ("shrine", plate_shrine), ("why", plate_why), ("end", plate_end)]
+          ("cost", plate_cost), ("shrine", plate_shrine), ("why", plate_why), ("impact", plate_impact), ("end", plate_end)]
 FADE = 0.45
 
 # ------------------------------------------------------------------ frame
@@ -236,7 +287,8 @@ def draw_frame(ink, t, meta, Wt, B):
     for i, (name, fn) in enumerate(PLATES):
         st = starts[i]; nxt = starts[i + 1] if i + 1 < len(PLATES) else 1e9
         if t < st - 0.01 or t > nxt + FADE: continue
-        a = 1 - clamp((t - nxt) / FADE); K = 1.0
+        a = 1.0 if t < nxt else 0.0; K = 1.0
+        if i + 1 < len(PLATES) and PLATES[i + 1][0] == "start": a = 1 - clamp((t - nxt) / FADE)
         if name == "cold":
             K = 1 - ease(clamp((t - tr) / 1.3)); a = 1.0 if t < tr1 else 0.0
             if K <= 0.001: continue
@@ -244,6 +296,13 @@ def draw_frame(ink, t, meta, Wt, B):
         z = 1 + 0.04 * clamp((t - st) / max(dur, 1))
         c = ink.ctx; c.save(); c.translate(W / 2, H * 0.5); c.scale(z, z); c.translate(-W / 2, -H * 0.5)
         fn(Ctx(ink, t, st, K, a), Wt); c.restore()
+    # ink-blot wipe into each new plate (not the rewind -> start cut)
+    for i, (name, _) in enumerate(PLATES):
+        if name in ("cold", "start"): continue
+        st = starts[i]
+        if st - 0.3 <= t <= st + 0.4:
+            r = 1400 * (ease_out((t - st + 0.3) / 0.3) if t < st else 1 - ease((t - st) / 0.4))
+            pm.blot(ink, 540, 950, r, i)
     # stamp
     for m in meta:
         s = STAMPS.get(m["name"])
@@ -295,9 +354,10 @@ def build_audio(meta, vo, Wt, B):
 def main():
     out = sys.argv[1]; stills = "--stills" in sys.argv
     work = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "out", "parch"); os.makedirs(work, exist_ok=True)
-    meta, vo = build_timeline(os.path.join(work, "dancing_vo"))
+    meta, vo = build_timeline(os.path.join(work, "dancing_vo3"))
     Wt, B = mk_W(meta); total = len(vo) / SR
     paper = pm.make_paper(); glow = pm.glow_map(); ink = Ink()
+    ink.clear(); pm.BOIL_AMP = 0; pm.border(ink); paper = pm.bake(paper, ink); pm.BOIL_AMP = 1.3
     if stills:
         from PIL import Image
         os.makedirs(out, exist_ok=True)

@@ -46,7 +46,7 @@ def make_paper(seed=3):
     for _ in range(7):
         cx, cy, r = rng.uniform(0, W), rng.uniform(0, H), rng.uniform(60, 220)
         d = np.sqrt((x - cx) ** 2 + (y - cy) ** 2) / r
-        ring = np.exp(-((d - 1) / 0.04) ** 2) * 0.045 + np.clip(1 - d, 0, 1) * 0.025
+        ring = np.clip(1 - d, 0, 1) ** 2 * 0.05
         col *= (1 - ring[..., None] * np.array([0.7, 1.0, 1.4]))
     # fibres
     fib = np.zeros((H, W), np.float32)
@@ -239,6 +239,9 @@ def figure(ink, x, y, h, pose=STAND, p=1.0, kind="woman", alpha=1.0, rot=0.0, co
     c = ink.ctx; c.save(); c.translate(x, y); c.rotate(math.radians(rot + pose.get("lean", 0)))
     if flip: c.scale(-1, 1)
     R = Reveal(p, 12); lw = max(2.5, h * 0.016)
+    if kind != "skeleton" and rot == 0:  # soft ground shadow
+        sa = alpha * min(1, p * 1.5) * 0.28
+        c.save(); c.scale(1, 0.18); c.set_source_rgba(*SEPIA, sa); c.arc(0, 0, h * 0.17, 0, 2 * math.pi); c.fill(); c.restore()
     by = -h * pose.get("bob", 0)
     hip = (0, -h * 0.47 + by); neck = (0, -h * 0.80 + by); hr = h * 0.075
     head = (math.sin(math.radians(pose.get("head", 0))) * hr * 0.5, neck[1] - hr * 1.1)
@@ -263,7 +266,9 @@ def figure(ink, x, y, h, pose=STAND, p=1.0, kind="woman", alpha=1.0, rot=0.0, co
                 mid = ((k[0] + f[0]) / 2, (k[1] + f[1]) / 2)
                 ink.stroke([mid, f], lw, R(), col, alpha, k=3)
         else:
-            for hp, k, f in legs: ink.stroke([hp, k, f], lw * 1.1, R(), col, alpha, k=3)
+            for hp, k, f in legs:
+                pr = R(); ink.stroke([hp, k, f], lw * 3.0, pr, SEPIA, alpha * 0.55, k=3, taper=False)
+                ink.stroke([hp, k, f], lw * 1.1, pr, col, alpha, k=3)
         for hp, k, f in legs:  # shoes
             sc = shoes or col
             ink.stroke([(f[0] - h * 0.01, f[1]), (f[0] + h * 0.045, f[1] + 1)], lw * 1.8, R() if not shoes else 1, sc, alpha)
@@ -288,7 +293,9 @@ def figure(ink, x, y, h, pose=STAND, p=1.0, kind="woman", alpha=1.0, rot=0.0, co
     # arms
     for side, ak, ek in ((-1, "aL", "eL"), (1, "aR", "eR")):
         so = (sh[0] + side * h * 0.06, sh[1]); a = pose[ak]; e = _seg(so, a, L1); hnd = _seg(e, a + pose[ek], L2)
-        ink.stroke([so, e, hnd], lw * (0.7 if kind == "skeleton" else 1.0), R(), col, alpha, k=3)
+        pr = R()
+        if kind != "skeleton": ink.stroke([so, e, hnd], lw * 3.2, pr, SEPIA, alpha * 0.55, k=3, taper=False)
+        ink.stroke([so, e, hnd], lw * (0.7 if kind == "skeleton" else 1.0), pr, col, alpha, k=3)
         ink.dot(*hnd, lw * (0.9 if kind == "skeleton" else 1.1), col, alpha * min(1, p * 2))
     # head
     pr = R()
@@ -300,10 +307,14 @@ def figure(ink, x, y, h, pose=STAND, p=1.0, kind="woman", alpha=1.0, rot=0.0, co
     else:
         ink.circle(head[0], head[1], hr, lw, pr, col, alpha)
         for sx in (-0.33, 0.33): ink.dot(head[0] + sx * hr, head[1] - hr * 0.05, hr * 0.11, col, alpha * pr)
-        ink.stroke([(head[0] - hr * 0.3, head[1] + hr * 0.45), (head[0] + hr * 0.3, head[1] + hr * 0.45)], lw * 0.6, pr, col, alpha)
+        ink.stroke([(head[0] - hr * 0.3, head[1] + hr * 0.45), (head[0], head[1] + hr * 0.52), (head[0] + hr * 0.3, head[1] + hr * 0.45)], lw * 0.6, pr, col, alpha)
+        for sx in (-0.55, 0.55): ink.dot(head[0] + sx * hr, head[1] + hr * 0.25, hr * 0.16, RED, alpha * pr * 0.35)
+        ink.stroke([(head[0], head[1] + hr * 0.02), (head[0] + hr * 0.08, head[1] + hr * 0.25)], lw * 0.5, pr, col, alpha * 0.8)
         if kind == "woman":  # coif / headscarf
             ink.stroke([(head[0] - hr * 1.15, head[1] + hr * 0.5), (head[0] - hr * 1.05, head[1] - hr * 0.8), (head[0], head[1] - hr * 1.3),
                         (head[0] + hr * 1.05, head[1] - hr * 0.8), (head[0] + hr * 1.15, head[1] + hr * 0.5)], lw, R(), col, alpha)
+            sw2 = pose.get("sway", 0) * 0.4  # braid swinging behind
+            ink.stroke([(head[0] + hr * 0.9, head[1] + hr * 0.4), (head[0] + hr * 1.3 + sw2, head[1] + hr * 1.6), (head[0] + hr * 1.2 + sw2 * 1.6, head[1] + hr * 2.8)], lw * 1.6, pr, col, alpha)
         else:  # pointed hood
             ink.stroke([(head[0] - hr * 1.1, head[1] + hr * 0.4), (head[0] - hr * 0.9, head[1] - hr * 0.9), (head[0] + hr * 0.6, head[1] - hr * 2.0),
                         (head[0] + hr * 1.0, head[1] - hr * 0.7), (head[0] + hr * 1.1, head[1] + hr * 0.4)], lw, R(), col, alpha)
@@ -515,3 +526,32 @@ def place(buf, clip, t, gain=1.0):
     if s0 >= len(buf) or s0 + len(clip) <= 0: return
     a = max(0, -s0); s0 = max(0, s0); m = min(len(clip) - a, len(buf) - s0)
     buf[s0:s0 + m] += clip[a:a + m] * gain
+
+def border(ink):
+    """Double-ruled manuscript frame with red corner ornaments (drawn once onto the paper)."""
+    m1, m2 = 58, 76
+    for m, w in ((m1, 4), (m2, 2)):
+        ink.stroke([(m, m), (W - m, m), (W - m, H - m), (m, H - m), (m, m)], w, 1, INK, 0.75, taper=False, dense=False)
+    for cx, cy in ((m1, m1), (W - m1, m1), (W - m1, H - m1), (m1, H - m1)):
+        d = 22; ink.fill([(cx, cy - d), (cx + d, cy), (cx, cy + d), (cx - d, cy)], RED, 0.85)
+        ink.circle(cx, cy, 34, 2.5, 1, INK, 0.7)
+    for y in (m1,):
+        for k in (-1, 1):
+            ink.stroke([(W / 2 + k * 60, y + 18), (W / 2 + k * 120, y + 8), (W / 2 + k * 170, y + 18)], 3, 1, RED, 0.7)
+
+def bake(paper, ink):
+    rgb_pm, a = ink.array(); return np.clip(paper * (1 - a + rgb_pm), 0, 255).astype(np.float32)
+
+def blot(ink, cx, cy, r, seed=0):
+    """Organic ink blot (for scene wipes)."""
+    if r <= 1: return
+    rng = np.random.default_rng(seed); ph = rng.uniform(0, 6, 5)
+    a = np.linspace(0, 2 * np.pi, 90)
+    rr = r * (1 + 0.12 * np.sin(5 * a + ph[0]) + 0.07 * np.sin(9 * a + ph[1]) + 0.04 * np.sin(17 * a + ph[2]))
+    pts = np.stack([cx + np.cos(a) * rr, cy + np.sin(a) * rr], 1)
+    c = ink.ctx; c.set_source_rgba(0.12, 0.07, 0.04, 0.96); c.move_to(*pts[0])
+    for q in pts[1:]: c.line_to(*q)
+    c.close_path(); c.fill()
+    for k in range(10):  # splatter drops
+        an = ph[3] + k * 0.63 + rng.uniform(-0.2, 0.2); d = r * rng.uniform(1.15, 1.5)
+        c.arc(cx + math.cos(an) * d, cy + math.sin(an) * d, r * rng.uniform(0.02, 0.06), 0, 2 * math.pi); c.fill()
