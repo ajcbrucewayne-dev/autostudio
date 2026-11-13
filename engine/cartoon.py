@@ -290,13 +290,14 @@ LEO_FACES = {  # eye scale, pupil scale, brow lift (+ up), brow tilt (+ worried)
     "smirk": (0.9, 1.0, 4, -0.6, ("smirk", 1.0)), "worried": (1.05, 0.9, 8, 0.8, ("flat", 1.0)),
 }
 
-def leo(c, x, y, s, pose="idle", face="happy", t=0.0, ow=8, look=(0, 0), bob=True, wave=False):
-    """Leo, an original curious kid: curly hair, brown skin, yellow hoodie with a white star. (x, y) = feet, s = scale (1 = ~720 px tall)."""
-    skin, hood, hair = rgb("#a86b45"), rgb("#ffc928"), rgb("#2b1a14")
+def leo(c, x, y, s, pose="idle", face="happy", t=0.0, ow=8, look=(0, 0), bob=True, wave=False, colors=None, mirror=False):
+    """Leo, an original curious kid: curly hair, brown skin, yellow hoodie with a white star. (x, y) = feet, s = scale (1 = ~720 px tall).
+    colors=(skin, hoodie, hair) re-colours him into another kid (e.g. a friend); mirror=True flips left/right."""
+    skin, hood, hair = colors or (rgb("#a86b45"), rgb("#ffc928"), rgb("#2b1a14"))
     lS, lE, rS, rE = LEO_POSES.get(pose, LEO_POSES["idle"])
     if wave: rE = 40 + 35 * math.sin(t * 9)
     by = -abs(math.sin(t * 2.2)) * 8 if bob else 0
-    c.save(); c.translate(x, y + by); c.scale(s, s); c.set_line_join(cairo.LINE_JOIN_ROUND); c.set_line_cap(cairo.LINE_CAP_ROUND)
+    c.save(); c.translate(x, y + by); c.scale(-s if mirror else s, s); c.set_line_join(cairo.LINE_JOIN_ROUND); c.set_line_cap(cairo.LINE_CAP_ROUND)
     def fsl(col, lw=ow): fs(c, col, lw)
     for sx in (-1, 1):
         c.new_path(); c.rectangle(sx * 38 - 22, -175, 44, 150); fsl(rgb("#3b5bdb"))

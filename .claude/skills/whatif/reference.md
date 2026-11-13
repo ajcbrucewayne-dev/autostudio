@@ -29,7 +29,7 @@ Every cut gets an automatic punch-in and whoosh. Captions (word-by-word, current
 | `earth(c, cx, cy, r, spin, bulge=0..1, bulge_ang, tilt, axis=True)` | spinning cartoon Earth, optional tidal bulge / tilted axis |
 | `moon(c, cx, cy, r, face=None/"happy"/"shock"/"sad"/"sleep", t, alpha, crack=0..1)` | |
 | `sun(c, cx, cy, r, t, face=...)`, `planet(c, cx, cy, r, col, ring_col, bands=[cols])` | |
-| `leo(c, x, y, scale, pose, face, t, look=(dx,dy), wave=False)` | (x, y) = feet. Poses: idle point_up point_left point_right shock cheer think shrug cover. Faces: happy shock curious scared sad wow smirk worried |
+| `leo(c, x, y, scale, pose, face, t, look=(dx,dy), wave=False, colors=(skin,hoodie,hair), mirror=False)` | (x, y) = feet; `colors` makes another kid. Poses: idle point_up point_left point_right shock cheer think shrug cover. Faces: happy shock curious scared sad wow smirk worried |
 | `crab(c, x, y, s, t, mood, walk)`, `coral(c, x, y, s, t, col, glow)`, `snowflake`, `cloud`, `star` | |
 | `wave_band(c, y, t, col, amp, ...)` | animated sea surface filled down to `bottom` |
 | `text(c, s, x, y, size, col, outline, alpha)`, `pop_text(c, s, x, y, size, p, col)` | bold outlined Inter |
