@@ -233,20 +233,79 @@ def dance_pose(t, ph=0.0, energy=1.0, speed=1.0):
 
 STAND = dict(bob=0, lean=0, aL=-10, eL=-5, aR=10, eR=5, hL=-4, kL=0, hR=4, kR=0, head=0, sway=0)
 
-def figure(ink, x, y, h, pose=STAND, p=1.0, kind="woman", alpha=1.0, rot=0.0, col=INK, shoes=None, wash=True, flip=False):
-    """Ink person. y = feet. rot (deg) rotates around the feet (for collapsing)."""
+SKIN = (0.93, 0.70, 0.52)
+EXPR = {  # open, pupil, brow (+ = worried/inner-up), mouth curve, mouth open, bags, sweat
+    "neutral": dict(open=1.0, pupil=0.55, brow=0.0, curve=0.1, mopen=0.0, bags=0, sweat=0),
+    "happy":   dict(open=0.85, pupil=0.55, brow=-0.2, curve=0.7, mopen=0.15, bags=0, sweat=0),
+    "trance":  dict(open=1.2, pupil=0.22, brow=0.0, curve=0.3, mopen=0.0, bags=0.3, sweat=0),
+    "tired":   dict(open=0.5, pupil=0.5, brow=0.6, curve=-0.1, mopen=0.35, bags=1, sweat=1),
+    "pain":    dict(open=0.3, pupil=0.5, brow=1.0, curve=-0.6, mopen=0.55, bags=1, sweat=1),
+    "fear":    dict(open=1.35, pupil=0.28, brow=1.0, curve=-0.3, mopen=0.7, bags=0, sweat=0.5),
+    "dead":    dict(open=0.0, pupil=0.0, brow=0.0, curve=0.0, mopen=0.15, bags=0.5, sweat=0),
+    "smug":    dict(open=0.7, pupil=0.55, brow=-0.6, curve=0.45, mopen=0.0, bags=0, sweat=0),
+    "sad":     dict(open=0.8, pupil=0.55, brow=0.9, curve=-0.45, mopen=0.0, bags=0, sweat=0),
+    "think":   dict(open=0.75, pupil=0.5, brow=-0.3, curve=0.0, mopen=0.0, bags=0, sweat=0, look=(0.5, -0.6)),
+}
+
+def face(ink, hx, hy, r, expr, t, p, col, alpha, var=0, kind="woman"):
+    e = dict(EXPR[expr]) if isinstance(expr, str) else dict(expr)
+    lw = max(1.6, r * 0.075)
+    blink = ((t + var * 0.77 + 1.7) % 3.6) < 0.11 and e["open"] > 0
+    op = 0.0 if blink else e["open"]
+    lx, ly = e.get("look", (0, 0))
+    for sx in (-1, 1):
+        ex, ey = hx + sx * r * 0.36, hy - r * 0.02; ew = r * 0.25; eh = r * 0.2 * op
+        if op <= 0.05:  # closed eye
+            ink.stroke([(ex - ew, ey), (ex, ey + r * 0.07), (ex + ew, ey)], lw, p, col, alpha)
+        else:
+            up = [(ex - ew, ey), (ex - ew * 0.4, ey - eh * 1.1), (ex + ew * 0.5, ey - eh), (ex + ew, ey)]
+            dn = [(ex - ew, ey), (ex, ey + eh * 0.9), (ex + ew, ey)]
+            ink.stroke(up, lw * 1.5, p, col, alpha); ink.stroke(dn, lw * 0.7, p, col, alpha * 0.8)
+            pr_ = r * 0.075 + r * 0.06 * e["pupil"]
+            px, py = ex + lx * ew * 0.35 + sx * 0, ey + ly * eh * 0.3 + eh * 0.1
+            ink.dot(px, py, min(pr_, eh * 0.95 + r * 0.02), col, alpha * p)
+            ink.dot(px - pr_ * 0.35, py - pr_ * 0.35, pr_ * 0.28, (0.98, 0.94, 0.85), alpha * p)  # catch-light
+            if kind == "woman":  # lashes
+                ink.line((ex + sx * ew, ey), (ex + sx * ew * 1.3, ey - r * 0.07), lw * 0.8, p, col, alpha)
+        # brow
+        b = e["brow"]; by = hy - r * 0.32 - r * 0.06 * op
+        inner = (ex - sx * ew * 0.8, by - b * r * 0.10); outer = (ex + sx * ew * 1.0, by + b * r * 0.05)
+        if expr == "smug" and sx > 0: inner, outer = (inner[0], inner[1] - r * 0.1), (outer[0], outer[1] - r * 0.12)
+        ink.stroke([inner, ((inner[0] + outer[0]) / 2, min(inner[1], outer[1]) - r * 0.03), outer], lw * 1.3, p, col, alpha)
+        if e["bags"]:
+            ink.stroke([(ex - ew * 0.7, ey + r * 0.14), (ex, ey + r * 0.19), (ex + ew * 0.7, ey + r * 0.14)], lw * 0.6, p, col, alpha * 0.45 * e["bags"])
+        ink.dot(hx + sx * r * 0.55, hy + r * 0.28, r * 0.13, RED, alpha * p * 0.28)  # cheeks
+    # nose
+    ink.stroke([(hx + r * 0.02, hy + r * 0.05), (hx + r * 0.1, hy + r * 0.22), (hx - r * 0.02, hy + r * 0.26)], lw * 0.9, p, col, alpha * 0.85)
+    # mouth
+    my = hy + r * 0.48; mw = r * (0.24 + 0.02 * e["mopen"]); cv = e["curve"]; mo = e["mopen"] * (1 + 0.15 * math.sin(t * 9 + var))
+    if mo > 0.08:
+        pts = [(hx - mw, my - cv * r * 0.08), (hx, my - r * 0.07 * mo), (hx + mw, my - cv * r * 0.08), (hx, my + r * 0.42 * mo)]
+        P = smooth(pts + [pts[0]], 6)
+        ink.fill(P, (0.35, 0.08, 0.06), 0.85 * alpha * p); ink.stroke(P, lw, p, col, alpha, taper=False, dense=False)
+    else:
+        ink.stroke([(hx - mw, my - cv * r * 0.12), (hx, my + cv * r * 0.08), (hx + mw, my - cv * r * 0.12)], lw * 1.1, p, col, alpha)
+    if e["sweat"] > 0 and p >= 1:
+        for k in range(2):
+            u = ((t * 0.7 + k * 0.5 + var * 0.3) % 1)
+            sx_ = hx + (1 if k == 0 else -1) * r * 1.0; sy = hy - r * 0.3 + u * r * 0.9
+            a2 = alpha * e["sweat"] * math.sin(math.pi * u)
+            ink.stroke([(sx_, sy - r * 0.13), (sx_ - r * 0.05, sy), (sx_, sy + r * 0.05), (sx_ + r * 0.05, sy), (sx_, sy - r * 0.13)], lw * 0.8, 1, col, a2, taper=False)
+
+def figure(ink, x, y, h, pose=STAND, p=1.0, kind="woman", alpha=1.0, rot=0.0, col=INK, shoes=None, wash=True, flip=False,
+           expr="neutral", t=0.0, var=0):
+    """Ink person with a big expressive head. y = feet. rot (deg) rotates around the feet (for collapsing)."""
     if p <= 0 or alpha <= 0.01: return
     c = ink.ctx; c.save(); c.translate(x, y); c.rotate(math.radians(rot + pose.get("lean", 0)))
     if flip: c.scale(-1, 1)
-    R = Reveal(p, 12); lw = max(2.5, h * 0.016)
+    R = Reveal(p, 12); lw = max(2.5, h * 0.015)
     if kind != "skeleton" and rot == 0:  # soft ground shadow
         sa = alpha * min(1, p * 1.5) * 0.28
         c.save(); c.scale(1, 0.18); c.set_source_rgba(*SEPIA, sa); c.arc(0, 0, h * 0.17, 0, 2 * math.pi); c.fill(); c.restore()
     by = -h * pose.get("bob", 0)
-    hip = (0, -h * 0.47 + by); neck = (0, -h * 0.80 + by); hr = h * 0.075
-    head = (math.sin(math.radians(pose.get("head", 0))) * hr * 0.5, neck[1] - hr * 1.1)
-    sh = (0, neck[1] + h * 0.035); L1, L2 = h * 0.15, h * 0.14; T1, T2 = h * 0.24, h * 0.23
-    # legs
+    hip = (0, -h * 0.44 + by); neck = (0, -h * 0.73 + by); hr = h * 0.105
+    head = (math.sin(math.radians(pose.get("head", 0))) * hr * 0.4, neck[1] - hr * 0.95)
+    sh = (0, neck[1] + h * 0.03); L1, L2 = h * 0.14, h * 0.13; T1, T2 = h * 0.22, h * 0.22
     legs = []
     for side, hk, kk in ((-1, "hL", "kL"), (1, "hR", "kR")):
         hp = (hip[0] + side * h * 0.035, hip[1]); a = pose[hk]; k = _seg(hp, a, T1); f = _seg(k, a + pose[kk], T2)
@@ -254,71 +313,103 @@ def figure(ink, x, y, h, pose=STAND, p=1.0, kind="woman", alpha=1.0, rot=0.0, co
     if kind == "skeleton":
         ink.stroke([neck, hip], lw * 0.8, R(), col, alpha, k=3)
         for i in range(4):  # ribs
-            yy = neck[1] + h * (0.06 + i * 0.045); wdt = h * (0.085 - i * 0.008)
+            yy = neck[1] + h * (0.05 + i * 0.045); wdt = h * (0.085 - i * 0.008)
             ink.stroke([(-wdt, yy + h * 0.02), (-wdt * 0.6, yy - h * 0.012), (0, yy), (wdt * 0.6, yy - h * 0.012), (wdt, yy + h * 0.02)], lw * 0.6, R(), col, alpha)
         ink.stroke([(-h * 0.06, hip[1] - h * 0.02), (0, hip[1] + h * 0.03), (h * 0.06, hip[1] - h * 0.02)], lw * 0.8, R(), col, alpha)
         for hp, k, f in legs:
             ink.stroke([hp, k, f], lw * 0.7, R(), col, alpha, k=3); ink.dot(*k, lw * 0.8, col, alpha * R())
     else:
         dress = kind == "woman"
-        if dress:  # visible shins under the hem
-            for hp, k, f in legs:
-                mid = ((k[0] + f[0]) / 2, (k[1] + f[1]) / 2)
-                ink.stroke([mid, f], lw, R(), col, alpha, k=3)
-        else:
-            for hp, k, f in legs:
-                pr = R(); ink.stroke([hp, k, f], lw * 3.0, pr, SEPIA, alpha * 0.55, k=3, taper=False)
+        for hp, k, f in legs:
+            pr = R()
+            if dress:
+                mid = ((k[0] + f[0]) / 2, (k[1] + f[1]) / 2); ink.stroke([mid, f], lw * 1.1, pr, col, alpha, k=3)
+            else:
+                ink.stroke([hp, k, f], lw * 3.0, pr, SEPIA, alpha * 0.55, k=3, taper=False)
                 ink.stroke([hp, k, f], lw * 1.1, pr, col, alpha, k=3)
-        for hp, k, f in legs:  # shoes
-            sc = shoes or col
-            ink.stroke([(f[0] - h * 0.01, f[1]), (f[0] + h * 0.045, f[1] + 1)], lw * 1.8, R() if not shoes else 1, sc, alpha)
-    # torso / dress
+            sc = shoes or col  # shoe
+            ink.stroke([(f[0] - h * 0.012, f[1] - h * 0.005), (f[0] + h * 0.05, f[1])], lw * 2.2, pr if not shoes else 1, sc, alpha)
     sw = pose.get("sway", 0)
     if kind == "woman":
-        hem = h * 0.11
-        poly = [(-h * 0.06, sh[1]), (h * 0.06, sh[1]), (h * 0.075, hip[1] - h * 0.02), (h * 0.20 + sw * 0.6, -hem + by * 0.3),
-                (h * 0.05 + sw * 0.3, -hem + h * 0.012 + by * 0.3), (-h * 0.08 + sw * 0.3, -hem - h * 0.01 + by * 0.3), (-h * 0.20 + sw * 0.6, -hem + by * 0.3), (-h * 0.075, hip[1] - h * 0.02)]
+        hem = h * 0.10
+        poly = [(-h * 0.055, sh[1]), (h * 0.055, sh[1]), (h * 0.07, hip[1] - h * 0.02), (h * 0.19 + sw * 0.6, -hem + by * 0.3),
+                (h * 0.05 + sw * 0.3, -hem + h * 0.012 + by * 0.3), (-h * 0.08 + sw * 0.3, -hem - h * 0.01 + by * 0.3), (-h * 0.19 + sw * 0.6, -hem + by * 0.3), (-h * 0.07, hip[1] - h * 0.02)]
+        apron = [(-h * 0.06, hip[1] - h * 0.01), (h * 0.06, hip[1] - h * 0.01), (h * 0.09 + sw * 0.4, -hem - h * 0.05 + by * 0.3), (-h * 0.09 + sw * 0.4, -hem - h * 0.05 + by * 0.3)]
         pr = R()
-        if wash: ink.fill(poly, SEPIA, 0.30 * alpha * pr)
-        ink.hatch(poly, pr, 40, max(6, h * 0.022), lw * 0.45, col, 0.55 * alpha)
+        if wash: ink.fill(poly, RED if var % 3 == 1 else SEPIA, (0.22 if var % 3 == 1 else 0.32) * alpha * pr)
+        _hatch_hole(ink, poly, apron, pr, 40, max(6, h * 0.022), lw * 0.45, col, 0.5 * alpha)
         ink.stroke(poly + [poly[0]], lw, pr, col, alpha, taper=False, dense=False)
-        ink.stroke([(-h * 0.075, hip[1] - h * 0.02), (h * 0.075, hip[1] - h * 0.02)], lw * 0.8, R(), col, alpha)  # waist
+        ink.stroke(apron + [apron[0]], lw * 0.8, pr, col, alpha * 0.85, taper=False, dense=False)
+        ink.stroke([(-h * 0.07, hip[1] - h * 0.02), (h * 0.07, hip[1] - h * 0.02)], lw * 1.1, R(), col, alpha)
     elif kind == "man":
-        poly = [(-h * 0.07, sh[1]), (h * 0.07, sh[1]), (h * 0.085, hip[1] + h * 0.07 + by * 0.2), (-h * 0.085, hip[1] + h * 0.07 + by * 0.2)]
+        poly = [(-h * 0.075, sh[1]), (h * 0.075, sh[1]), (h * 0.09, hip[1] + h * 0.07 + by * 0.2), (-h * 0.09, hip[1] + h * 0.07 + by * 0.2)]
         pr = R()
-        if wash: ink.fill(poly, SEPIA, 0.28 * alpha * pr)
-        ink.hatch(poly, pr, -35, max(6, h * 0.024), lw * 0.45, col, 0.5 * alpha)
+        if wash: ink.fill(poly, (0.35, 0.45, 0.30) if var % 2 else SEPIA, 0.30 * alpha * pr)
+        ink.hatch(poly, pr, -35, max(6, h * 0.024), lw * 0.45, col, 0.45 * alpha)
         ink.stroke(poly + [poly[0]], lw, pr, col, alpha, taper=False, dense=False)
-        ink.stroke([(-h * 0.08, hip[1]), (h * 0.08, hip[1])], lw * 1.2, R(), col, alpha)  # belt
-    # arms
+        ink.stroke([(-h * 0.085, hip[1]), (h * 0.085, hip[1])], lw * 1.4, R(), col, alpha)  # belt
     for side, ak, ek in ((-1, "aL", "eL"), (1, "aR", "eR")):
-        so = (sh[0] + side * h * 0.06, sh[1]); a = pose[ak]; e = _seg(so, a, L1); hnd = _seg(e, a + pose[ek], L2)
+        so = (sh[0] + side * h * 0.055, sh[1] + h * 0.01); a = pose[ak]; e = _seg(so, a, L1); hnd = _seg(e, a + pose[ek], L2)
         pr = R()
-        if kind != "skeleton": ink.stroke([so, e, hnd], lw * 3.2, pr, SEPIA, alpha * 0.55, k=3, taper=False)
+        if kind != "skeleton": ink.stroke([so, e, hnd], lw * 3.4, pr, SEPIA, alpha * 0.55, k=3, taper=False)
         ink.stroke([so, e, hnd], lw * (0.7 if kind == "skeleton" else 1.0), pr, col, alpha, k=3)
-        ink.dot(*hnd, lw * (0.9 if kind == "skeleton" else 1.1), col, alpha * min(1, p * 2))
-    # head
-    pr = R()
+        if kind != "skeleton":
+            ink.fill([(hnd[0] + math.cos(q) * h * 0.022, hnd[1] + math.sin(q) * h * 0.022) for q in np.linspace(0, 6.28, 12)], SKIN, 0.6 * alpha * pr)
+            ink.circle(hnd[0], hnd[1], h * 0.022, lw * 0.8, pr, col, alpha)
+        else: ink.dot(*hnd, lw * 0.9, col, alpha * min(1, p * 2))
+    pr = R(); hx, hy = head
     if kind == "skeleton":
-        ink.circle(head[0], head[1], hr, lw, pr, col, alpha)
-        ink.stroke([(head[0] - hr * 0.6, head[1] + hr * 0.7), (head[0], head[1] + hr * 1.25), (head[0] + hr * 0.6, head[1] + hr * 0.7)], lw * 0.8, pr, col, alpha)
-        for sx in (-0.38, 0.38): ink.dot(head[0] + sx * hr, head[1] - hr * 0.05, hr * 0.27, col, alpha * pr)
-        ink.dot(head[0], head[1] + hr * 0.38, hr * 0.1, col, alpha * pr)
+        ink.circle(hx, hy, hr, lw, pr, col, alpha)
+        ink.stroke([(hx - hr * 0.6, hy + hr * 0.7), (hx, hy + hr * 1.25), (hx + hr * 0.6, hy + hr * 0.7)], lw * 0.8, pr, col, alpha)
+        for sx in (-0.38, 0.38): ink.dot(hx + sx * hr, hy - hr * 0.05, hr * 0.27, col, alpha * pr)
+        ink.dot(hx, hy + hr * 0.38, hr * 0.1, col, alpha * pr)
+        for k in range(-2, 3): ink.line((hx + k * hr * 0.15, hy + hr * 0.82), (hx + k * hr * 0.15, hy + hr * 1.05), lw * 0.5, pr, col, alpha)
     else:
-        ink.circle(head[0], head[1], hr, lw, pr, col, alpha)
-        for sx in (-0.33, 0.33): ink.dot(head[0] + sx * hr, head[1] - hr * 0.05, hr * 0.11, col, alpha * pr)
-        ink.stroke([(head[0] - hr * 0.3, head[1] + hr * 0.45), (head[0], head[1] + hr * 0.52), (head[0] + hr * 0.3, head[1] + hr * 0.45)], lw * 0.6, pr, col, alpha)
-        for sx in (-0.55, 0.55): ink.dot(head[0] + sx * hr, head[1] + hr * 0.25, hr * 0.16, RED, alpha * pr * 0.35)
-        ink.stroke([(head[0], head[1] + hr * 0.02), (head[0] + hr * 0.08, head[1] + hr * 0.25)], lw * 0.5, pr, col, alpha * 0.8)
-        if kind == "woman":  # coif / headscarf
-            ink.stroke([(head[0] - hr * 1.15, head[1] + hr * 0.5), (head[0] - hr * 1.05, head[1] - hr * 0.8), (head[0], head[1] - hr * 1.3),
-                        (head[0] + hr * 1.05, head[1] - hr * 0.8), (head[0] + hr * 1.15, head[1] + hr * 0.5)], lw, R(), col, alpha)
-            sw2 = pose.get("sway", 0) * 0.4  # braid swinging behind
-            ink.stroke([(head[0] + hr * 0.9, head[1] + hr * 0.4), (head[0] + hr * 1.3 + sw2, head[1] + hr * 1.6), (head[0] + hr * 1.2 + sw2 * 1.6, head[1] + hr * 2.8)], lw * 1.6, pr, col, alpha)
-        else:  # pointed hood
-            ink.stroke([(head[0] - hr * 1.1, head[1] + hr * 0.4), (head[0] - hr * 0.9, head[1] - hr * 0.9), (head[0] + hr * 0.6, head[1] - hr * 2.0),
-                        (head[0] + hr * 1.0, head[1] - hr * 0.7), (head[0] + hr * 1.1, head[1] + hr * 0.4)], lw, R(), col, alpha)
+        ink.line((0, neck[1] + h * 0.03), (0, neck[1] - hr * 0.1), lw * 2.5, pr, SEPIA, alpha * 0.5)
+        if kind == "woman":  # braid swinging behind the head
+            sw2 = sw * 0.5
+            ink.stroke([(hx + hr * 0.7, hy + hr * 0.3), (hx + hr * 1.3 + sw2, hy + hr * 1.3), (hx + hr * 1.15 + sw2 * 1.6, hy + hr * 2.3)], lw * 2.6, pr, (0.40, 0.22, 0.10), alpha)
+        oval = [(hx + math.cos(q) * hr * 0.93, hy + math.sin(q) * hr * (1.0 + 0.08 * max(0, math.sin(q)))) for q in np.linspace(0, 2 * math.pi, 40)]
+        ink.fill(oval, SKIN, 0.45 * alpha * pr)
+        ink.stroke(oval, lw * 1.2, pr, col, alpha, taper=False, dense=False)
+        for sx in (-1, 1):  # ears
+            ink.stroke([(hx + sx * hr * 0.9, hy - hr * 0.1), (hx + sx * hr * 1.08, hy), (hx + sx * hr * 0.92, hy + hr * 0.2)], lw, pr, col, alpha)
+        if kind == "woman":  # linen coif with a fringe of hair
+            coif = [(hx - hr * 1.12, hy + hr * 0.55), (hx - hr * 1.05, hy - hr * 0.55), (hx - hr * 0.5, hy - hr * 1.15), (hx + hr * 0.5, hy - hr * 1.15),
+                    (hx + hr * 1.05, hy - hr * 0.55), (hx + hr * 1.12, hy + hr * 0.55)]
+            ink.stroke(coif, lw * 1.3, pr, col, alpha)
+            ink.stroke([(hx - hr * 0.75, hy - hr * 0.55), (hx - hr * 0.2, hy - hr * 0.78), (hx + hr * 0.4, hy - hr * 0.62), (hx + hr * 0.8, hy - hr * 0.5)], lw * 2.2, pr, (0.40, 0.22, 0.10), alpha)
+        else:
+            if var % 3 == 2:  # pointed hood
+                ink.stroke([(hx - hr * 1.1, hy + hr * 0.4), (hx - hr * 0.95, hy - hr * 0.9), (hx + hr * 0.6, hy - hr * 1.9),
+                            (hx + hr * 1.0, hy - hr * 0.7), (hx + hr * 1.1, hy + hr * 0.4)], lw * 1.3, pr, col, alpha)
+            else:  # messy hair tufts
+                for k in range(5):
+                    a0 = math.radians(-160 + k * 30); bx, by2 = hx + math.cos(a0) * hr * 0.9, hy + math.sin(a0) * hr * 0.95
+                    ink.stroke([(bx, by2), (bx + math.cos(a0) * hr * 0.25 + hr * 0.1, by2 + math.sin(a0) * hr * 0.3)], lw * 2.0, pr, (0.30, 0.18, 0.08), alpha)
+                if var % 3 == 1:  # beard
+                    ink.stroke([(hx - hr * 0.8, hy + hr * 0.35), (hx - hr * 0.5, hy + hr * 0.95), (hx, hy + hr * 1.1), (hx + hr * 0.5, hy + hr * 0.95), (hx + hr * 0.8, hy + hr * 0.35)], lw * 2.0, pr, (0.30, 0.18, 0.08), alpha * 0.9)
+        face(ink, hx, hy, hr, expr, t, pr, col, alpha, var, kind)
     c.restore()
+
+def _hatch_hole(ink, poly, hole, p, ang, gap, w, col, alpha):
+    """hatch inside poly but not inside hole (even-odd clip)."""
+    if p <= 0 or alpha <= 0.01: return
+    c = ink.ctx; c.save(); c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+    for P in (np.asarray(poly, np.float32), np.asarray(hole, np.float32)):
+        P = boil(P); c.move_to(*P[0])
+        for q in P[1:]: c.line_to(*q)
+        c.close_path()
+    c.clip(); c.set_fill_rule(cairo.FILL_RULE_WINDING)
+    P = np.asarray(poly, np.float32); x0, y0 = P.min(0); x1, y1 = P.max(0); cx, cy = (x0 + x1) / 2, (y0 + y1) / 2; R_ = math.hypot(x1 - x0, y1 - y0) / 2 + 4
+    a = math.radians(ang); ux, uy = math.cos(a), math.sin(a); vx, vy = -uy, ux
+    nl = int(2 * R_ / gap) + 1; shown = int(nl * clamp(p) + 0.999)
+    c.set_source_rgba(*col, alpha); c.set_line_width(w)
+    for i in range(shown):
+        o = -R_ + i * gap
+        c.move_to(cx + vx * o - ux * R_, cy + vy * o - uy * R_); c.line_to(cx + vx * o + ux * R_, cy + vy * o + uy * R_)
+    c.stroke(); c.restore()
+
 
 # ------------------------------------------------------------------ scenery
 def ground(ink, y, p, x0=60, x1=W - 60, alpha=1.0, cobbles=True):
