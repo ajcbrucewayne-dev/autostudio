@@ -415,6 +415,126 @@ def place(buf, clip, t, gain=1.0):
     a = max(0, -s0); s0 = max(0, s0); m = min(len(clip) - a, len(buf) - s0)
     buf[s0:s0 + m] += clip[a:a + m] * gain
 
+# ------------------------------------------------------------------ cinematic look
+def glow(c, x, y, r, col=YEL, alpha=0.6):
+    """soft light halo"""
+    g = cairo.RadialGradient(x, y, 0, x, y, r); g.add_color_stop_rgba(0, *col, alpha); g.add_color_stop_rgba(0.35, *col, alpha * 0.35); g.add_color_stop_rgba(1, *col, 0)
+    c.new_path(); c.arc(x, y, r, 0, 2 * math.pi); c.set_source(g); c.fill()
+
+def god_rays(c, x, y, t, n=9, length=1600, col=(1, 0.92, 0.7), alpha=0.10, spread=1.2, ang=1.1):
+    """volumetric light shafts fanning out from (x, y) around direction ang (radians)"""
+    for i in range(n):
+        a = ang - spread / 2 + spread * i / max(1, n - 1) + 0.03 * math.sin(t * 0.7 + i)
+        w = 0.035 + 0.025 * math.sin(i * 2.1 + t * 0.5)
+        g = cairo.LinearGradient(x, y, x + math.cos(a) * length, y + math.sin(a) * length)
+        g.add_color_stop_rgba(0, *col, alpha * (0.7 + 0.3 * math.sin(i * 1.7 + t))); g.add_color_stop_rgba(1, *col, 0)
+        c.new_path(); c.move_to(x, y); c.line_to(x + math.cos(a - w) * length, y + math.sin(a - w) * length)
+        c.line_to(x + math.cos(a + w) * length, y + math.sin(a + w) * length); c.close_path(); c.set_source(g); c.fill()
+
+def lens_flare(c, x, y, alpha=0.5):
+    """flare ghosts along the line from the light through the screen centre"""
+    dx, dy = W / 2 - x, H / 2 - y
+    glow(c, x, y, 260, (1, 0.95, 0.8), alpha * 0.8)
+    for k, r, col in ((0.5, 40, (1, 0.8, 0.4)), (0.9, 70, (0.5, 0.8, 1)), (1.3, 28, (1, 0.5, 0.8)), (1.7, 110, (0.6, 1, 0.8))):
+        glow(c, x + dx * k, y + dy * k, r, col, alpha * 0.35)
+    c.new_path(); c.move_to(x - 420, y); c.line_to(x + 420, y); c.set_source_rgba(1, 0.95, 0.85, alpha * 0.35); c.set_line_width(3); c.stroke()
+
+def rim_light(c, cx, cy, r, ang=-2.4, col=(1, 0.95, 0.8), alpha=0.75, w=None):
+    """bright rim on the lit side of a round object (light coming from direction ang)"""
+    w = w or max(6, r * 0.06)
+    c.new_path(); c.arc(cx, cy, r - w * 0.4, ang - 0.9, ang + 0.9); c.set_source_rgba(*col, alpha); c.set_line_width(w); c.stroke()
+    glow(c, cx + math.cos(ang) * r, cy + math.sin(ang) * r, r * 0.6, col, alpha * 0.25)
+
+_NEB = {}
+def bg_cinema(c, t, seed=5, top="#03061a", bot="#0d0a2e", neb=(("#2c3fb8", 0.5), ("#0f7fa8", 0.4), ("#6b2fb0", 0.35))):
+    """deep space with soft nebula clouds, depth-layered stars (near stars drift with parallax)"""
+    key = (seed, top, bot)
+    if key not in _NEB:
+        from PIL import Image, ImageFilter
+        S = cairo.ImageSurface(cairo.FORMAT_RGB24, W, H); k = cairo.Context(S)
+        g = cairo.LinearGradient(0, 0, 0, H); g.add_color_stop_rgb(0, *rgb(top)); g.add_color_stop_rgb(1, *rgb(bot)); k.set_source(g); k.paint()
+        rng = np.random.default_rng(seed)
+        for col, a in neb:
+            for _ in range(5):
+                k.new_path(); path(k, blob(rng.uniform(0, W), rng.uniform(0, H), rng.uniform(200, 420), int(rng.integers(0, 99)), 0.45)); k.set_source_rgba(*rgb(col), a * 0.5); k.fill()
+        for _ in range(900):
+            k.new_path(); k.arc(rng.uniform(0, W), rng.uniform(0, H), rng.choice([0.6, 0.9, 1.2]), 0, 2 * math.pi); k.set_source_rgba(1, 1, 1, rng.uniform(0.3, 0.8)); k.fill()
+        S.flush(); arr = np.ndarray((H, W, 4), np.uint8, S.get_data()).copy()
+        im = Image.fromarray(arr[..., :3]).filter(ImageFilter.GaussianBlur(28))
+        sharp = Image.fromarray(arr[..., :3]); blurred = np.asarray(im).astype(np.float32); st = np.asarray(sharp).astype(np.float32)
+        out = np.maximum(blurred, st * (st.max(axis=2, keepdims=True) > 150))  # nebula blurred, tiny stars kept sharp
+        rgba = np.dstack([out.clip(0, 255).astype(np.uint8), np.full((H, W), 255, np.uint8)])
+        S2 = cairo.ImageSurface.create_for_data(bytearray(rgba.tobytes()), cairo.FORMAT_RGB24, W, H)
+        stars = [(rng.uniform(-300, W + 300), rng.uniform(-300, H + 300), rng.choice([2, 2.5, 3.5]), rng.uniform(0, 6)) for _ in range(70)]
+        _NEB[key] = (S2, stars)
+    S2, stars = _NEB[key]
+    c.save(); c.identity_matrix(); c.set_source_surface(S2); c.paint(); c.restore()
+    for x, y, r, ph in stars:  # near stars (they move with the camera = parallax)
+        a = 0.6 + 0.4 * math.sin(t * 1.7 + ph); glow(c, x, y, r * 5, (0.85, 0.9, 1), a * 0.35)
+        c.new_path(); c.arc(x, y, r, 0, 2 * math.pi); c.set_source_rgba(1, 1, 1, a); c.fill()
+
+def blurred(c, draw, radius=8):
+    """draw something out of focus (depth of field): draw(ctx) is rendered with the current transform, then blurred"""
+    from PIL import Image, ImageFilter
+    S = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H); k = cairo.Context(S); k.set_matrix(c.get_matrix()); draw(k); S.flush()
+    a = np.ndarray((H, W, 4), np.uint8, S.get_data())
+    im = Image.fromarray(a.copy(), "RGBA").resize((W // 4, H // 4), Image.BILINEAR).filter(ImageFilter.GaussianBlur(radius / 4)).resize((W, H), Image.BILINEAR)
+    b = np.ascontiguousarray(np.asarray(im)); S2 = cairo.ImageSurface.create_for_data(bytearray(b.tobytes()), cairo.FORMAT_ARGB32, W, H)
+    c.save(); c.identity_matrix(); c.set_source_surface(S2); c.paint(); c.restore()
+
+class Post:
+    """film look applied to every frame: bloom, split-tone grade, contrast, vignette, grain, impact flashes"""
+    def __init__(self, strength=1.0):
+        y, x = np.mgrid[0:H, 0:W].astype(np.float32)
+        d = np.sqrt(((x - W / 2) / (W * 0.62)) ** 2 + ((y - H / 2) / (H * 0.62)) ** 2)
+        self.vig = (1 - 0.42 * np.clip(d - 0.35, 0, 1) ** 1.4)[..., None].astype(np.float32)
+        rng = np.random.default_rng(1); self.grain = [rng.normal(0, 1, (H // 2, W // 2)).astype(np.float32) for _ in range(6)]
+        self.k = strength
+    def __call__(self, img, t, flash=0.0):
+        from PIL import Image, ImageFilter
+        f = img.astype(np.float32) / 255
+        br = np.clip((f - 0.62) * 2.2, 0, 1)
+        small = Image.fromarray((br * 255).astype(np.uint8)).resize((W // 6, H // 6), Image.BILINEAR).filter(ImageFilter.GaussianBlur(5))
+        bloom = np.asarray(small.resize((W, H), Image.BILINEAR)).astype(np.float32) / 255
+        f = f + bloom * 0.5 * self.k
+        l = f.mean(axis=2, keepdims=True)
+        f = f + (1 - l) * np.array([-0.025, 0.005, 0.045], np.float32) * self.k + l * np.array([0.04, 0.015, -0.03], np.float32) * self.k
+        f = 0.5 + (f - 0.5) * (1 + 0.10 * self.k)
+        f = f * self.vig
+        g = self.grain[int(t * 24) % 6]; f = f + np.repeat(np.repeat(g, 2, 0), 2, 1)[..., None] * 0.018 * self.k
+        if flash > 0: f = f + flash
+        return (np.clip(f, 0, 1) * 255).astype(np.uint8)
+
+def music_cine(n, impacts=(), seed=0):
+    """Cinematic score: slow evolving pad + low drone + soft pulse; risers into, and 'braam' hits on, each impact."""
+    t = np.arange(n) / SR; out = np.zeros(n, np.float32)
+    chords = [[110, 164.8, 220, 261.6], [87.3, 130.8, 174.6, 220], [98, 146.8, 196, 246.9], [82.4, 123.5, 164.8, 207.7]]
+    seg = int(SR * 5.0)
+    for i0 in range(0, n, seg):
+        ch = chords[(i0 // seg) % 4]; L = min(seg + int(SR), n - i0); tt = np.arange(L) / SR
+        env = np.minimum(1, tt / 1.5) * np.minimum(1, np.maximum(0, (L / SR - tt)) / 1.5)
+        for f in ch:
+            for det in (-0.004, 0.0, 0.004):
+                ph = 2 * np.pi * f * (1 + det) * tt
+                out[i0:i0 + L] += (env * (np.sin(ph) + 0.25 * np.sin(2 * ph) + 0.1 * np.sin(3 * ph)) * 0.025).astype(np.float32)
+    out += (np.sin(2 * np.pi * 41.2 * t) * 0.10 * (0.7 + 0.3 * np.sin(2 * np.pi * 0.1 * t))).astype(np.float32)
+    for b in np.arange(0, n / SR, 60 / 70):  # soft heartbeat pulse
+        s0 = int(b * SR); m = min(int(0.25 * SR), n - s0)
+        if m > 0: ta = np.arange(m) / SR; out[s0:s0 + m] += (np.sin(2 * np.pi * 55 * ta) * np.exp(-ta * 14) * 0.18).astype(np.float32)
+    rng = np.random.default_rng(seed)
+    for ti in impacts:
+        L = int(1.6 * SR); s0 = int((ti - 1.6) * SR)
+        if s0 > 0:  # riser
+            nz = rng.standard_normal(L).astype(np.float32); ramp = np.linspace(0, 1, L) ** 2.5
+            hp = nz - np.convolve(nz, np.ones(30) / 30, "same")
+            out[s0:s0 + L] += (hp * ramp * 0.22)[:len(out[s0:s0 + L])]
+        L = int(3.0 * SR); s0 = int(ti * SR); tt = np.arange(min(L, n - s0)) / SR
+        if len(tt):  # braam
+            br = sum(np.tanh(3 * np.sin(2 * np.pi * f * tt)) for f in (55, 82.4, 110, 164.8)) * np.exp(-tt * 1.2) * np.minimum(1, tt / 0.02) * 0.10
+            sub = np.sin(2 * np.pi * 38 * tt) * np.exp(-tt * 2) * 0.5
+            out[s0:s0 + len(tt)] += (br + sub).astype(np.float32)
+    return out
+
 # ------------------------------------------------------------------ runner
 class Scene:
     """What a scene draw function receives."""
@@ -469,6 +589,9 @@ def draw_frame(c, ep, t, beats, Wt, B, CAM):
     cx, cy, z = cam_at(t, keys)
     if idx > 0:  # punch-in on every cut
         z *= 1 + 0.07 * (1 - ease_out((t - st) / 0.3))
+    for ti in getattr(ep, "_impacts", []):  # camera shake after impacts
+        if 0 <= t - ti < 0.9:
+            k = (1 - (t - ti) / 0.9) ** 2 * 26 / z; cx += math.sin(t * 71) * k; cy += math.cos(t * 59) * k
     c.save(); c.translate(W / 2, H / 2); c.scale(z, z); c.translate(-cx, -cy)
     fn(c, Scene(t, max(st, 0), Wt, B)); c.restore()
     hook = getattr(ep, "HOOK", None)
@@ -481,7 +604,8 @@ def draw_frame(c, ep, t, beats, Wt, B, CAM):
                 if g[0][1] <= t < g[-1][2] + 0.15: caption(c, g, t, getattr(ep, "CAPTION_Y", H * 0.72)); break
 
 def build_audio(ep, beats, vo, Wt, B):
-    n = len(vo); m = music(n) * 0.9; fx = np.zeros(n, np.float32)
+    n = len(vo); fx = np.zeros(n, np.float32)
+    m = music_cine(n, getattr(ep, "_impacts", [])) * 1.1 if getattr(ep, "LOOK", "") == "cinematic" else music(n) * 0.9
     for i, (b, _) in enumerate(ep.SCENES):
         if i: place(fx, sfx_whoosh(i), Wt(b) - 0.2, 0.35)
     if hasattr(ep, "sfx"): ep.sfx(Wt, B, lambda clip, t, g=1.0: place(fx, clip, t, g))
@@ -494,10 +618,16 @@ def main():
     work = os.path.join(ROOT, "out", "cartoon", ep.NAME); os.makedirs(work, exist_ok=True)
     beats, vo = build_timeline(ep, os.path.join(work, "vo")); Wt, B = mk_W(beats); total = len(vo) / SR
     CAM = ep.cams(Wt, B) if hasattr(ep, "cams") else {}
+    ep._impacts = ep.impacts(Wt, B) if hasattr(ep, "impacts") else []
+    post = Post() if getattr(ep, "LOOK", "") == "cinematic" else None
     S = cairo.ImageSurface(cairo.FORMAT_RGB24, W, H); c = cairo.Context(S)
     def frame(t):
         draw_frame(c, ep, t, beats, Wt, B, CAM); S.flush()
-        return np.ndarray((H, W, 4), np.uint8, S.get_data())[..., 2::-1]
+        img = np.ndarray((H, W, 4), np.uint8, S.get_data())[..., 2::-1]
+        if post:
+            fl = max([0.0] + [0.55 * (1 - (t - ti) / 0.35) for ti in ep._impacts if 0 <= t - ti < 0.35])
+            img = post(img, t, fl)
+        return img
     if "--stills" in sys.argv:
         from PIL import Image
         os.makedirs(out, exist_ok=True)
