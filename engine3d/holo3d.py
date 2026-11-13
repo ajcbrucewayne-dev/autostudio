@@ -315,7 +315,7 @@ for c0, c1 in zip(cols_, cols_[1:]):
 bm.faces.new(cols_[0][::-1]); bm.faces.new(cols_[-1]); bmesh.ops.recalc_face_normals(bm, faces=bm.faces); bm.to_mesh(me); bm.free()
 shore = bpy.data.objects.new("sand", me); col.objects.link(shore)
 finish(shore, holo_mat("beach", SANDC, 2.4, 0.2, 0.4), broot, True); wire(shore, holo_mat("beach", SANDC, 3.0, 0.8, 0.2, scan=False), 0.0022)
-tv = word_t("vanish", "moon") + 0.1
+tv = word_t("vanish", "vanish") + 0.1  # the Moon blinks out on "vanished"
 lo, hi = -0.035, 0.06
 t_rise0 = word_t("beach", "sea") - 0.2; t_rise1 = t_rise0 + 3.2
 SEAS = []
@@ -382,6 +382,12 @@ for i in range(30):
     for t, hid in ((0, True), (tv + 0.1, True), (tv + 0.14, False), (tv + 1.65, True)):
         sh.hide_render = hid; sh.keyframe_insert("hide_render", frame=F(t))
 fade("shards", [(0, 0), (tv + 0.12, 0), (tv + 0.18, 1.0), (tv + 0.7, 0.8), (tv + 1.6, 0)])
+# where the Moon used to be: a flickering dashed outline (= missing)
+gom = holo_mat("gone", (1.0, 0.45, 0.35), 4.0, 0.9, 0.0, scan=False)
+for k in range(16):
+    a_ = k / 16 * 2 * math.pi; a2 = a_ + 2 * math.pi / 16 * 0.55
+    rod("dash", (MX + 0.08 * math.cos(a_), -0.02, MZ + 0.08 * math.sin(a_)), (MX + 0.08 * math.cos(a2), -0.02, MZ + 0.08 * math.sin(a2)), 0.0028, gom, broot)
+fade("gone", [(0, 0), (tv + 0.35, 0), (tv + 0.45, 1.0), (tv + 0.6, 0.3), (tv + 0.75, 1.0), (tv + 1.0, 0.5), (tv + 1.15, 1.0), (FLIPS[2] - 0.1, 1.0), (FLIPS[2] + 0.2, 0.0)])
 
 # ---------------- "after" page: no Moon, the bulge flattens, tides shrink
 a0, a1 = B["after"]; l0, l1 = B["life"]; g0, g1 = B["tilt"]; n0, n1 = B["end"]
@@ -537,11 +543,11 @@ for t, r in ((0, FACE_CAM), (0.9, FACE_CAM), (1.7, FACE_HOLO), (END - 2.4, FACE_
 for t, hx in ((0, 0), (1.2, 0), (beam_on, -0.12), (t_title, -0.38), (b0 + 0.5, -0.38), (v0 + 0.3, -0.55), (tv + 0.4, -0.55), (tv + 0.7, -0.3),
               (END - 2.4, -0.3), (END - 1.6, 0)):
     head.rotation_euler.x = hx; head.keyframe_insert("rotation_euler", index=0, frame=F(t))
-# reach for the Moon, then flinch when it shatters
+# arms at rest; little flinch when the Moon vanishes
 R = sho[-1]
-for t, rx, ry in ((0, 0, -0.25), (v0 + 0.1, 0, -0.25), (tv - 0.9, -2.5, -0.15), (tv + 0.2, -2.6, -0.15), (tv + 0.6, -0.4, -0.3), (tv + 1.4, 0, -0.25)):
+for t, rx, ry in ((0, 0, -0.25),):  # arms rest (Leo only watches; the Moon vanishes on its own)
     R.rotation_euler.x = rx; R.rotation_euler.y = ry; R.keyframe_insert("rotation_euler", frame=F(t))
-for t, lx in ((0, 0), (tv + 0.15, 0), (tv + 0.35, 0.12), (tv + 1.2, 0)):  # little jump back
+for t, lx in ((0, 0), (tv + 1.25, 0), (tv + 1.45, 0.12), (tv + 2.3, 0)):  # little jump back
     leo.rotation_euler.x = lx; leo.keyframe_insert("rotation_euler", index=0, frame=F(t))
 
 # ---------------- lights: dim warm lamp + cool fill
@@ -564,7 +570,8 @@ keys = [(0.0, (0.95, -1.75, 0.5), (0.3, -0.35, 0.14)), (2.4, (0.75, -1.95, 0.62)
         (e0 + 0.6, (-0.1, -2.1, 1.08), (0, 0, 0.74)), (e1 - 0.4, (-0.5, -1.85, 1.18), (0, 0, 0.72)),
         (b0 + 0.8, (0.05, -1.95, 0.8), (0.03, 0, 0.52)), (b1 - 0.1, (0.15, -1.8, 0.76), (0.05, 0, 0.52)),
         (v0 + 0.7, (0.55, -1.85, 0.66), (-0.15, 0, 0.84)), (tv + 0.2, (0.5, -1.78, 0.64), (-0.18, 0, 0.88)),
-        (tv + 0.2 + 1.0 / FPS, (0.25, -0.53, 0.44), (0.43, -0.86, 0.31)), (tv + 1.9, (0.29, -0.6, 0.41), (0.43, -0.86, 0.31)),
+        (tv + 1.2, (0.48, -1.74, 0.63), (-0.18, 0, 0.88)),
+        (tv + 1.2 + 1.0 / FPS, (0.25, -0.53, 0.44), (0.43, -0.86, 0.31)), (tv + 2.4, (0.29, -0.6, 0.41), (0.43, -0.86, 0.31)),
         (a0 + 0.7, (-0.2, -2.05, 1.06), (0, 0, 0.74)), (a1 - 0.4, (0.22, -1.9, 1.0), (0, 0, 0.72)),
         (l0 + 0.6, (0.05, -1.3, 1.2), (0, 0, 0.6)), (t_coral - 0.3, (-0.12, -1.25, 1.12), (0, 0, 0.6)),
         (t_coral + 0.6, (0.12, -1.55, 0.88), (0, 0, 0.72)), (l1 - 0.4, (-0.1, -1.5, 0.92), (0, 0, 0.74)),
@@ -594,7 +601,7 @@ bpy.app.handlers.frame_change_pre.append(_count)
 if "--cues" in a:  # sound-design cue times (audio timeline)
     cues = {"beam_on": beam_on, "beam_off": beam_off, "open": t_open, "close": t_close, "flips": FLIPS,
             "builds": [t_title, e0 + 0.3, b0 + 0.3, a0 + 0.3, tb, th, t_cnt, t_pool, t_strand, t_coral, g0 + 0.3, word_t("tilt", "scrambl") - 0.2],
-            "glitch": tv - 0.9, "shatter": tv + 0.15, "derez": tc0, "tide": [t_rise0, t_rise1], "cu": [tv + 0.2, tv + 1.9],
+            "glitch": tv - 0.9, "shatter": tv + 0.15, "derez": tc0, "tide": [t_rise0, t_rise1], "cu": [tv + 1.2, tv + 2.4],
             "fizzle": t_lose - 0.6, "drain": [t_drain, t_drain + 2.0], "spawn": t_spawn}
     json.dump({"off": OFF, "fps": FPS, "film_frames": NF,
                "cues": {k: ([x + OFF for x in v] if isinstance(v, list) else v + OFF) for k, v in cues.items()}},
