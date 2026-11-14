@@ -1,0 +1,4 @@
+# one line per file: destination folder|Commons file name (spaces as underscores). Pushing this file triggers .github/workflows/fetch-assets.yml
+assets/footage|Okeanos_Explorer_PR_and_USVI_Dive_8-_Psychedelic_Medusa-NOAA-1280x720.webm
+assets/footage|Venus_Flytrap_Anemone-_2017_American_Samoa.webm
+assets/footage|Bathynomus_giganteus.webm

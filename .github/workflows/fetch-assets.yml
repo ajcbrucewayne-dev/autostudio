@@ -2,6 +2,8 @@ name: Fetch free assets
 # Downloads public-domain / freely licensed media from Wikimedia Commons into assets/ and commits it.
 # Run from the Actions tab (or `gh workflow run fetch-assets.yml -f files="File_A.webm|File_B.jpg" -f dest=assets/footage`).
 on:
+  push:
+    paths: ["assets/fetch-list.txt"]      # push a list (one "dest|File_name" per line) to trigger a fetch
   workflow_dispatch:
     inputs:
       files: { description: "Commons file names separated by | (spaces as underscores)", required: true }
@@ -16,11 +18,12 @@ jobs:
       - name: Download from Wikimedia Commons
         env:
           FILES: ${{ inputs.files }}
-          DEST: ${{ inputs.dest }}
+          DEST_IN: ${{ inputs.dest }}
         run: |
-          mkdir -p "$DEST"
-          IFS='|' read -ra LIST <<< "$FILES"
-          for N in "${LIST[@]}"; do
+          if [ -n "$FILES" ]; then IFS='|' read -ra L <<< "$FILES"; for N in "${L[@]}"; do echo "$DEST_IN|$N"; done > /tmp/list
+          else grep -v '^#' assets/fetch-list.txt | sed '/^\s*$/d' > /tmp/list; fi
+          while IFS='|' read -r DEST N; do
+            mkdir -p "$DEST"; [ -s "$DEST/$N" ] && { echo "have $N"; continue; }
             H=$(printf "%s" "$N" | md5sum | cut -c1-32)
             URL="https://upload.wikimedia.org/wikipedia/commons/${H:0:1}/${H:0:2}/$N"
             for i in 1 2 3 4; do
@@ -29,10 +32,10 @@ jobs:
             done
             [ "$code" = "200" ] || { echo "failed: $N"; rm -f "$DEST/$N"; exit 1; }
             ls -la "$DEST/$N"
-          done
+          done < /tmp/list
       - name: Commit
         run: |
           git config user.name "autostudio-bot"; git config user.email "bot@users.noreply.github.com"
-          git add "${{ inputs.dest }}"
-          git commit -m "Fetch assets: ${{ inputs.files }}" || echo "nothing new"
+          git add assets
+          git commit -m "Fetch assets" || echo "nothing new"
           git push
