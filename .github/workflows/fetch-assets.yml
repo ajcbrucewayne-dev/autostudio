@@ -1,0 +1,38 @@
+name: Fetch free assets
+# Downloads public-domain / freely licensed media from Wikimedia Commons into assets/ and commits it.
+# Run from the Actions tab (or `gh workflow run fetch-assets.yml -f files="File_A.webm|File_B.jpg" -f dest=assets/footage`).
+on:
+  workflow_dispatch:
+    inputs:
+      files: { description: "Commons file names separated by | (spaces as underscores)", required: true }
+      dest:  { description: "Folder to save into", required: true, default: "assets/footage" }
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download from Wikimedia Commons
+        env:
+          FILES: ${{ inputs.files }}
+          DEST: ${{ inputs.dest }}
+        run: |
+          mkdir -p "$DEST"
+          IFS='|' read -ra LIST <<< "$FILES"
+          for N in "${LIST[@]}"; do
+            H=$(printf "%s" "$N" | md5sum | cut -c1-32)
+            URL="https://upload.wikimedia.org/wikipedia/commons/${H:0:1}/${H:0:2}/$N"
+            for i in 1 2 3 4; do
+              code=$(curl -sS -L -A "autostudio-asset-fetch/1.0 (GitHub Actions)" -o "$DEST/$N" -w "%{http_code}" "$URL") && [ "$code" = "200" ] && break
+              echo "try $i got $code"; sleep $((i * 20))
+            done
+            [ "$code" = "200" ] || { echo "failed: $N"; rm -f "$DEST/$N"; exit 1; }
+            ls -la "$DEST/$N"
+          done
+      - name: Commit
+        run: |
+          git config user.name "autostudio-bot"; git config user.email "bot@users.noreply.github.com"
+          git add "${{ inputs.dest }}"
+          git commit -m "Fetch assets: ${{ inputs.files }}" || echo "nothing new"
+          git push
