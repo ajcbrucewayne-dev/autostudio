@@ -106,6 +106,7 @@ def burst(c, x, y, lt, n=10, r0=40, r1=220, col=YEL, seed=0, size=16):
         circle(c, x + math.cos(a) * d, y + math.sin(a) * d, size * (1 - 0.5 * f), col, 4, al)
 
 def star(c, x, y, r, col=YEL, ow=6, rot=0.0):
+    if r <= 0.01: return
     P = [(x + math.cos(-math.pi / 2 + rot + i * math.pi / 5) * (r if i % 2 == 0 else r * 0.45),
           y + math.sin(-math.pi / 2 + rot + i * math.pi / 5) * (r if i % 2 == 0 else r * 0.45)) for i in range(10)]
     c.new_path(); path(c, P); fs(c, col, ow)
