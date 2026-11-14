@@ -59,7 +59,7 @@ def s_hook(c, s):
     pulse = 0.6 + 0.4 * math.sin(t * 6)
     globe.fill_region(c, china(), lon0, 34, R, ZC[0], 0.55 + 0.25 * pulse, W / 2, 1040)
     clock_icon(c, *globe.lonlat_to_screen(104, 34, lon0, 34, R, W / 2, 1040)[:2], 70, 8.0, 1.0)
-    text(c, "1 ?", 540, 1300, 130, YEL)
+    text(c, "ONLY 1 ?", 540, 600, 110, YEL)
 
 def s_us(c, s):
     t = s.t; tc = s.W("us", "China"); tb = s.W("us", "Beijing")
@@ -110,7 +110,7 @@ def s_why(c, s):
         c.set_source_rgba(*mix(ZC[i], ZC[0], merge), 0.8); c.fill()
     c.restore()
     globe.region_path(c, china(), lon0, lat0, R, W / 2, 1000); c.set_source_rgba(1, 1, 1, 0.9); c.set_line_width(3); c.stroke()
-    pop_text(c, "BEFORE 1949: 5 ZONES", W / 2, 420, 64, s.P(s.t0 + 0.2, 0.3) * (1 - merge), WHITE)
+    if t < tm - 0.15: pop_text(c, "BEFORE 1949: 5 ZONES", W / 2, 420, 64, s.P(s.t0 + 0.2, 0.3), WHITE)
     if t > tm - 0.1: pop_text(c, "MERGED INTO ONE", W / 2, 420, 72, s.P(tm - 0.1, 0.3), YEL)
     if t > tu - 0.2: label(c, "\"TO UNITE THE COUNTRY\"", W / 2, 1300, 46, WHITE, OUT, s.P(tu - 0.2, 0.3))
 
