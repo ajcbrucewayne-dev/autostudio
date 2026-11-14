@@ -8,3 +8,6 @@ assets/mars|Mars_Viking_MDIM21_ClrMosaic_1km.jpg
 assets/mars|NASA_Mars_Rover.jpg
 assets/mars|PIA22222-Mars-OpportunityRover-FirstSelfie-20180220.jpg
 # retry 2118
+search|assets/forbidden|Terracotta Army Pit 1 Xian filetype:bitmap|4
+search|assets/forbidden|Mausoleum of the First Qin Emperor tumulus mound filetype:bitmap|4
+search|assets/forbidden|Terracotta warrior face close-up filetype:bitmap|3
