@@ -22,6 +22,29 @@ jobs:
         run: |
           if [ -n "$FILES" ]; then IFS='|' read -ra L <<< "$FILES"; for N in "${L[@]}"; do echo "$DEST_IN|$N"; done > /tmp/list
           else grep -v '^#' assets/fetch-list.txt | sed '/^\s*$/d' > /tmp/list; fi
+          # "search|dest|query|max" lines: search Commons (files only) and turn the hits into download lines
+          grep '^search|' /tmp/list > /tmp/search || true; grep -v '^search|' /tmp/list > /tmp/list2 || true
+          while IFS='|' read -r _ DEST Q MAX; do
+            sleep 3
+            curl -sS -A "autostudio-asset-fetch/1.0 (GitHub Actions)" -G "https://commons.wikimedia.org/w/api.php" \
+              --data-urlencode action=query --data-urlencode list=search --data-urlencode srnamespace=6 \
+              --data-urlencode "srsearch=$Q" --data-urlencode "srlimit=${MAX:-5}" --data-urlencode format=json \
+              | python3 -c "import json,sys; [print(r['title'][5:].replace(' ','_')) for r in json.load(sys.stdin)['query']['search']]" \
+              | while read -r T; do echo "$DEST|$T"; done >> /tmp/list2
+          done < /tmp/search
+          mv /tmp/list2 /tmp/list; echo "--- files to fetch:"; cat /tmp/list
+          # also save each file's licence + author so credits are never guessed
+          while IFS='|' read -r DEST N; do
+            sleep 2
+            curl -sS -A "autostudio-asset-fetch/1.0 (GitHub Actions)" -G "https://commons.wikimedia.org/w/api.php" \
+              --data-urlencode action=query --data-urlencode "titles=File:$N" --data-urlencode prop=imageinfo \
+              --data-urlencode iiprop=extmetadata --data-urlencode format=json \
+              | python3 -c "
+          import json,sys,re
+          d=json.load(sys.stdin); p=list(d['query']['pages'].values())[0]; em=p.get('imageinfo',[{}])[0].get('extmetadata',{})
+          g=lambda k: re.sub('<[^>]+>','',str(em.get(k,{}).get('value','')))[:300].replace('\n',' ')
+          print(sys.argv[1]+' | '+g('LicenseShortName')+' | '+g('Artist')+' | '+g('ImageDescription')[:200])" "$N" >> assets/LICENSES_fetched.txt || true
+          done < /tmp/list
           while IFS='|' read -r DEST N; do
             mkdir -p "$DEST"; [ -s "$DEST/$N" ] && { echo "have $N"; continue; }
             H=$(printf "%s" "$N" | md5sum | cut -c1-32)
