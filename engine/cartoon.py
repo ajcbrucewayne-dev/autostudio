@@ -605,7 +605,10 @@ def draw_frame(c, ep, t, beats, Wt, B, CAM):
     hook = getattr(ep, "HOOK", None)
     if hook and t < B[ep.BEATS[1][0]]["t0"] + 0.2:
         al = 1 - clamp((t - B[ep.BEATS[1][0]]["t0"]) / 0.2); pulse = 1 + 0.025 * math.sin(t * 6)
-        text(c, hook[0], W / 2, 200, 80, WHITE, alpha=al); text(c, hook[1], W / 2, 300, 104 * pulse, YEL, alpha=al)
+        c.select_font_face("Inter", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+        def fit(txt, size):   # shrink long hook lines so they never run off screen
+            c.set_font_size(size); w = c.text_extents(txt).x_advance; return size * min(1.0, W * 0.9 / max(w, 1))
+        text(c, hook[0], W / 2, 200, fit(hook[0], 80), WHITE, alpha=al); text(c, hook[1], W / 2, 300, fit(hook[1], 104) * pulse, YEL, alpha=al)
     for b in beats:
         if b["s0"] - 0.05 <= t <= b["s1"] + 0.2:
             for g in render.build_groups([tuple(w) for w in b["words"]]):
