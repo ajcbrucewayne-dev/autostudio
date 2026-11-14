@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: pip install --quiet pillow
       - name: Download from Wikimedia Commons
         env:
           FILES: ${{ inputs.files }}
@@ -55,7 +56,9 @@ jobs:
             done
             [ "$code" = "200" ] || { echo "skipped (throttled): $N"; rm -f "$DEST/$N"; continue; }
             case "$N" in *.jpg|*.jpeg|*.png|*.tif)   # keep the repo light: cap huge images at 4096 px
-              [ "$(stat -c%s "$DEST/$N")" -gt 8000000 ] && convert "$DEST/$N" -resize '4096x4096>' -quality 90 "$DEST/$N" ;; esac
+              if [ "$(stat -c%s "$DEST/$N")" -gt 8000000 ]; then python3 -c "
+          import sys; from PIL import Image; Image.MAX_IMAGE_PIXELS = None
+          im = Image.open(sys.argv[1]); im.thumbnail((4096, 4096)); im.convert('RGB').save(sys.argv[1], quality=90)" "$DEST/$N"; fi ;; esac
             ls -la "$DEST/$N"
           done < /tmp/list
       - name: Commit
