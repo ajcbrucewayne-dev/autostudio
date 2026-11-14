@@ -14,6 +14,7 @@ def tex():
     global _TEX
     if _TEX is None:
         _TEX = np.asarray(Image.open(os.path.join(ROOT, "assets", "earth_bluemarble_3840.jpg")).convert("RGB")).astype(np.float32) / 255
+        _TEX = _TEX.copy(); _TEX[:, :2] = _TEX[:, 2:3]; _TEX[:, -2:] = _TEX[:, -3:-2]   # hide the seam at the 180° meridian
     return _TEX
 
 def _rot(lon0, lat0):
