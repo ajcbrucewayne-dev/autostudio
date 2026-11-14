@@ -11,3 +11,6 @@ assets/mars|PIA22222-Mars-OpportunityRover-FirstSelfie-20180220.jpg
 search|assets/forbidden|Terracotta Army Pit 1 Xian filetype:bitmap|4
 search|assets/forbidden|Mausoleum of the First Qin Emperor tumulus mound filetype:bitmap|4
 search|assets/forbidden|Terracotta warrior face close-up filetype:bitmap|3
+search|assets/forbidden|Lascaux painting horse filetype:bitmap|4
+search|assets/forbidden|Lascaux hall of the bulls filetype:bitmap|3
+search|assets/forbidden|Lascaux II entrance replica filetype:bitmap|2
