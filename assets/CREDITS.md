@@ -5,3 +5,4 @@
 - `photos/sapphirina_georgina_jones_ccbysa4.jpg` — "Sapphirina" by Georgina Jones (via iNaturalist), licensed CC BY-SA 4.0
   (https://creativecommons.org/licenses/by-sa/4.0/). Source: https://commons.wikimedia.org/wiki/File:Sapphirina.jpg
   Shown unmodified; credit must appear on screen and in the video description.
+- `geo/*.geojson` — Natural Earth (naturalearthdata.com), public domain. Via github.com/nvkelso/natural-earth-vector.

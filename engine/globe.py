@@ -59,3 +59,56 @@ def lonlat_to_screen(lon, lat, lon0, lat0, R, cx=W / 2, cy=H / 2):
     w = np.array([math.cos(la) * math.sin(lo), math.sin(la), math.cos(la) * math.cos(lo)])
     v = _rot(lon0, lat0) @ w
     return cx + v[0] * R, cy - v[1] * R, v[2] > 0
+
+# ------------------------------------------------------------------ vector overlays (Natural Earth borders, public domain)
+import json as _json
+_GEO = {}
+def _features(src):
+    if src not in _GEO:
+        _GEO[src] = _json.load(open(os.path.join(ROOT, "assets", "geo", src + ".geojson")))["features"]
+    return _GEO[src]
+
+def rings(name, src="ne_50m_admin_0_countries", key=("NAME", "ADMIN", "name")):
+    """outer rings [(lon, lat) array, ...] of the feature whose name matches"""
+    out = []
+    for f in _features(src):
+        p = f["properties"]
+        if any(p.get(k) == name for k in key):
+            g = f["geometry"]; polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
+            out += [np.array(poly[0], np.float32) for poly in polys]
+    return out
+
+def project(lon, lat, lon0, lat0, R, cx=W / 2, cy=H / 2):
+    """vectorised lonlat_to_screen: arrays in, (x, y, visible) arrays out"""
+    la, lo = np.radians(lat), np.radians(lon)
+    w = np.stack([np.cos(la) * np.sin(lo), np.sin(la), np.cos(la) * np.cos(lo)])
+    v = _rot(lon0, lat0) @ w
+    return cx + v[0] * R, cy - v[1] * R, v[2] > 0
+
+def region_path(c, ring_list, lon0, lat0, R, cx=W / 2, cy=H / 2, min_pts=4):
+    """add projected rings to the cairo path (rings partly on the far side are skipped)"""
+    c.new_path(); n = 0
+    for r in ring_list:
+        x, y, vis = project(r[:, 0], r[:, 1], lon0, lat0, R, cx, cy)
+        if vis.mean() < 0.98 or len(x) < min_pts: continue
+        c.move_to(x[0], y[0])
+        for a, b in zip(x[1:], y[1:]): c.line_to(a, b)
+        c.close_path(); n += 1
+    return n
+
+def fill_region(c, ring_list, lon0, lat0, R, col, alpha=0.75, cx=W / 2, cy=H / 2, edge=(1, 1, 1), glow_w=18):
+    """GeoGlobeTales-style flat colour fill with a soft glowing edge"""
+    if alpha <= 0.01 or not region_path(c, ring_list, lon0, lat0, R, cx, cy): return
+    c.set_source_rgba(*col, alpha); c.fill_preserve()
+    c.set_source_rgba(*col, 0.35 * alpha); c.set_line_width(glow_w); c.set_line_join(1); c.stroke_preserve()
+    c.set_source_rgba(*edge, 0.9 * alpha); c.set_line_width(3); c.stroke()
+
+def meridian_band(c, lon_a, lon_b, lat_a, lat_b, lon0, lat0, R, cx=W / 2, cy=H / 2, steps=24):
+    """path for a lon/lat box (used for time-zone bands, clipped by a country path)"""
+    lats = np.linspace(lat_a, lat_b, steps); lons = np.linspace(lon_a, lon_b, steps)
+    lon = np.concatenate([np.full(steps, lon_a), lons, np.full(steps, lon_b), lons[::-1]])
+    lat = np.concatenate([lats, np.full(steps, lat_b), lats[::-1], np.full(steps, lat_a)])
+    x, y, _ = project(lon, lat, lon0, lat0, R, cx, cy)
+    c.new_path(); c.move_to(x[0], y[0])
+    for a, b in zip(x[1:], y[1:]): c.line_to(a, b)
+    c.close_path()
