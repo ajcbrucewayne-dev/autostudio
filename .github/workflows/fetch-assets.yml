@@ -35,8 +35,11 @@ jobs:
           done < /tmp/search
           mv /tmp/list2 /tmp/list; echo "--- files to fetch:"; cat /tmp/list
           # also save each file's licence + author so credits are never guessed
+          touch assets/LICENSES_fetched.txt
           while IFS='|' read -r DEST N; do
-            sleep 2
+            grep -q "^$N | [^|]*[A-Za-z]" assets/LICENSES_fetched.txt && continue      # licence already recorded
+            for try in 1 2 3; do
+            sleep $((try * 8))
             curl -sS -A "autostudio-asset-fetch/1.0 (GitHub Actions)" -G "https://commons.wikimedia.org/w/api.php" \
               --data-urlencode action=query --data-urlencode "titles=File:$N" --data-urlencode prop=imageinfo \
               --data-urlencode iiprop=extmetadata --data-urlencode format=json \
@@ -44,7 +47,8 @@ jobs:
           import json,sys,re
           d=json.load(sys.stdin); p=list(d['query']['pages'].values())[0]; em=p.get('imageinfo',[{}])[0].get('extmetadata',{})
           g=lambda k: re.sub('<[^>]+>','',str(em.get(k,{}).get('value','')))[:300].replace('\n',' ')
-          print(sys.argv[1]+' | '+g('LicenseShortName')+' | '+g('Artist')+' | '+g('ImageDescription')[:200])" "$N" >> assets/LICENSES_fetched.txt || true
+          print(sys.argv[1]+' | '+g('LicenseShortName')+' | '+g('Artist')+' | '+g('ImageDescription')[:200])" "$N" > /tmp/lic && { cat /tmp/lic >> assets/LICENSES_fetched.txt; break; } || true
+            done
           done < /tmp/list
           while IFS='|' read -r DEST N; do
             mkdir -p "$DEST"; [ -s "$DEST/$N" ] && { echo "have $N"; continue; }
