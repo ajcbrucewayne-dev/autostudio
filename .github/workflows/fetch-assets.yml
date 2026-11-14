@@ -53,7 +53,9 @@ jobs:
               code=$(curl -sS -L -A "autostudio-asset-fetch/1.0 (GitHub Actions)" -o "$DEST/$N" -w "%{http_code}" "$URL") && [ "$code" = "200" ] && break
               echo "try $i got $code"; sleep $((i * 20))
             done
-            [ "$code" = "200" ] || { echo "failed: $N"; rm -f "$DEST/$N"; exit 1; }
+            [ "$code" = "200" ] || { echo "skipped (throttled): $N"; rm -f "$DEST/$N"; continue; }
+            case "$N" in *.jpg|*.jpeg|*.png|*.tif)   # keep the repo light: cap huge images at 4096 px
+              [ "$(stat -c%s "$DEST/$N")" -gt 8000000 ] && convert "$DEST/$N" -resize '4096x4096>' -quality 90 "$DEST/$N" ;; esac
             ls -la "$DEST/$N"
           done < /tmp/list
       - name: Commit

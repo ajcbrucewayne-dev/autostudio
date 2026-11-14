@@ -1,10 +1,9 @@
 # one line per file: destination folder|Commons file name (spaces as underscores)
 #   or: search|destination folder|search query|max results
 # Pushing this file triggers .github/workflows/fetch-assets.yml (files already present are skipped).
-assets/footage|Okeanos_Explorer_PR_and_USVI_Dive_8-_Psychedelic_Medusa-NOAA-1280x720.webm
-assets/footage|Venus_Flytrap_Anemone-_2017_American_Samoa.webm
-assets/footage|Bathynomus_giganteus.webm
-search|assets/mars|Pinnacle Island Opportunity rock filetype:bitmap|6
-search|assets/mars|Mars Viking MDIM21 global color mosaic filetype:bitmap|3
-search|assets/mars|Opportunity rover Mars Exploration Rover artist concept filetype:bitmap|4
-search|assets/mars|Opportunity rover self portrait Endeavour crater filetype:bitmap|3
+assets/mars|PIA17761-MarsOpportunityRover-MysteryRock-Sol3528-Sol3540-color.jpg
+assets/mars|PIA17942-MarsOpportunityRover-PinnacleIslandRockMysterySolved-20140204.jpg
+assets/mars|Pinnacle_Island_(January_2014).jpg
+assets/mars|Mars_Viking_MDIM21_ClrMosaic_1km.jpg
+assets/mars|NASA_Mars_Rover.jpg
+assets/mars|PIA22222-Mars-OpportunityRover-FirstSelfie-20180220.jpg
