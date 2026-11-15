@@ -22,7 +22,9 @@ TITLE = "The mountain no woman may enter 🚫 #shorts"
 DESCRIPTION = ("No woman has been allowed on Mount Athos for over 1,000 years. Not even female animals. Here's why. "
                "#history #greece #mystery #forbiddenplaces #offthemap #shorts\n\n"
                "Map: NASA, Natural Earth (public domain).\nPhotos (Wikimedia Commons): Simonopetra by Thodoris Lakiotis, CC BY-SA 3.0 "
-               "(creativecommons.org/licenses/by-sa/3.0); Simonopetra Monastery, public domain.")
+               "(creativecommons.org/licenses/by-sa/3.0); Simonopetra Monastery, public domain."
+               "\nMusic: "Lightless Dawn" by Kevin MacLeod (incompetech.com), CC BY 3.0 (creativecommons.org/licenses/by/3.0).")
+MUSIC = "assets/music/Lightless_Dawn_(ISRC_USUAN1100655).mp3"
 TAGS = ["mount athos", "forbidden places", "greece", "history", "off the map", "shorts"]
 VOICE, SPEED = "am_michael", 1.06
 HOOK = ("NO WOMEN FOR 1,000+ YEARS", "NOT EVEN HENS")

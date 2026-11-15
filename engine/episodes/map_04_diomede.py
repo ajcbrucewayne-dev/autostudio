@@ -17,7 +17,9 @@ LOOK = "cinematic"
 TITLE = "These islands are 3.8 km apart... and 21 HOURS apart ⏰ #shorts"
 DESCRIPTION = ("Russia and the USA almost touch in the Bering Strait, and the International Date Line runs right between them. "
                "#geography #maps #russia #alaska #shorts\n\nImages: Wikimedia Commons / NASA / US Coast Guard (public domain). "
-               "Map: NASA, Natural Earth (public domain).")
+               "Map: NASA, Natural Earth (public domain)."
+               "\nMusic: "The Snow Queen" by Kevin MacLeod (incompetech.com), CC BY 4.0 (creativecommons.org/licenses/by/4.0).")
+MUSIC = "assets/music/The_Snow_Queen_by_Kevin_MacLeod.ogg"
 TAGS = ["diomede islands", "date line", "geography", "maps", "russia", "alaska", "shorts"]
 VOICE, SPEED = "am_michael", 1.07
 CAPTION_Y = 1450

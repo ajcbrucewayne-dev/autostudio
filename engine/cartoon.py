@@ -614,14 +614,28 @@ def draw_frame(c, ep, t, beats, Wt, B, CAM):
             for g in render.build_groups([tuple(w) for w in b["words"]]):
                 if g[0][1] <= t < g[-1][2] + 0.15: caption(c, g, t, getattr(ep, "CAPTION_Y", H * 0.72)); break
 
+def music_track(path, n, start=0.0):
+    """decode a real music file (any ffmpeg format) to mono SR, loop/trim to n samples, fade in/out, normalise"""
+    import subprocess
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(start), "-i", path, "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
+                         capture_output=True, check=True).stdout
+    a = np.frombuffer(raw, np.float32).copy()
+    if len(a) < n: a = np.tile(a, n // max(len(a), 1) + 1)
+    a = a[:n]; f = int(SR * 0.4); a[:f] *= np.linspace(0, 1, f); fo = int(SR * 1.5); a[-fo:] *= np.linspace(1, 0, fo)
+    return a / max(1e-6, np.percentile(np.abs(a), 99.5)) * 0.5
+
 def build_audio(ep, beats, vo, Wt, B):
     n = len(vo); fx = np.zeros(n, np.float32)
     m = music_cine(n, getattr(ep, "_impacts", [])) * 1.1 if getattr(ep, "LOOK", "") == "cinematic" else music(n) * 0.9
+    mus = getattr(ep, "MUSIC", None) or os.environ.get("MUSIC")
+    if mus:   # a real (mid-range) music bed, so the score is audible on phone speakers; keep the cinematic hits on top
+        mp = mus if os.path.isabs(mus) else os.path.join(ROOT, mus)
+        m = music_track(mp, n, getattr(ep, "MUSIC_START", 0.0)) * getattr(ep, "MUSIC_GAIN", 1.0) + music_cine(n, getattr(ep, "_impacts", [])) * 0.45
     for i, (b, _) in enumerate(ep.SCENES):
         if i: place(fx, sfx_whoosh(i), Wt(b) - 0.2, 0.35)
     if hasattr(ep, "sfx"): ep.sfx(Wt, B, lambda clip, t, g=1.0: place(fx, clip, t, g))
     hop = 480; e = np.sqrt(np.convolve(vo ** 2, np.ones(hop) / hop, "same")); duck = np.convolve(1 - 0.5 * np.clip(e / 0.05, 0, 1), np.ones(4800) / 4800, "same")
-    mix_ = vo + m * 0.28 * duck + fx * 0.6
+    mix_ = vo + m * (0.42 if mus else 0.28) * duck + fx * 0.6
     return (np.tanh(mix_ * 1.1) * 0.92).astype(np.float32)
 
 def main():
@@ -647,6 +661,10 @@ def main():
         print("beats:", [(b["name"], round(b["t0"], 2)) for b in beats], "total", round(total, 1)); return
     import soundfile as sf
     wav = os.path.join(work, "mix.wav"); sf.write(wav, build_audio(ep, beats, vo, Wt, B), SR)
+    if "--remix" in sys.argv:   # swap only the soundtrack of an already-rendered video (no frame re-render)
+        src = sys.argv[sys.argv.index("--remix") + 1]
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-i", wav, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+                        "-c:a", "aac", "-b:a", "192k", "-shortest", out], check=True); print("REMIXED", out); return
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
                            "-i", wav, "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
                            "-shortest", "-movflags", "+faststart", out], stdin=subprocess.PIPE)
