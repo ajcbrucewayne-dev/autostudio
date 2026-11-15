@@ -12,7 +12,7 @@ from episodes_util import paint_rgba
 
 NAME = "geo_01_china_time"
 LOOK = "cinematic"
-TITLE = "Why does China have only ONE time zone? 🕗 #shorts"
+TITLE = "China should have 5 time zones. It uses ONE 🕗 #shorts"
 DESCRIPTION = ("China is about as wide as the USA... but uses just one clock. Here's why, and what it does to the far west. "
                "#geography #maps #china #facts #shorts\n\nEarth imagery: NASA (public domain). Borders: Natural Earth (public domain).")
 TAGS = ["china", "time zones", "geography", "maps", "facts", "shorts"]
