@@ -112,3 +112,31 @@ def meridian_band(c, lon_a, lon_b, lat_a, lat_b, lon0, lat0, R, cx=W / 2, cy=H /
     c.new_path(); c.move_to(x[0], y[0])
     for a, b in zip(x[1:], y[1:]): c.line_to(a, b)
     c.close_path()
+
+def draw_path(c, lonlat, lon0, lat0, R, cx=W / 2, cy=H / 2, p=1.0, col=(1, 0.85, 0.2), width=8, glow_w=26, dash=None, densify=20):
+    """a line along lon/lat points that draws itself (p 0..1); densified so it bends with the globe; hidden on the far side"""
+    if p <= 0: return
+    pts = []
+    for (a, b), (c2, d) in zip(lonlat, lonlat[1:]):
+        if abs(c2 - a) > 180: c2 += 360 if c2 < a else -360        # cross the antimeridian the short way
+        for f in np.linspace(0, 1, densify, endpoint=False): pts.append((a + (c2 - a) * f, b + (d - b) * f))
+    pts.append(lonlat[-1]); P = np.array(pts, np.float32)
+    n = max(2, int(len(P) * p)); P = P[:n]
+    x, y, vis = project(P[:, 0], P[:, 1], lon0, lat0, R, cx, cy)
+    for lw, a in ((glow_w, 0.25), (width, 1.0)):
+        c.new_path(); started = False
+        for xi, yi, v in zip(x, y, vis):
+            if v and started: c.line_to(xi, yi)
+            elif v: c.move_to(xi, yi); started = True
+            else: started = False
+        c.set_source_rgba(*col, a); c.set_line_width(lw); c.set_line_cap(1)
+        if dash: c.set_dash(dash)
+        c.stroke(); c.set_dash([])
+
+# simplified International Date Line (lon, lat)
+DATE_LINE = [(180, -85), (180, -52), (-172.5, -45), (-172.5, -15), (-150, -10), (-150, 5), (180, 5), (180, 48),
+             (170, 52), (180, 65.5), (-169, 65.8), (-169, 72), (180, 75), (180, 85)]
+
+def sun_dir(angle_deg, tilt=0.25):
+    """sun direction in view space for render_globe(sun=...): angle sweeps it around the globe (day/night terminator moves)"""
+    a = math.radians(angle_deg); return (math.sin(a), tilt, math.cos(a))
