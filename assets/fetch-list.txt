@@ -18,3 +18,8 @@ search|assets/forbidden|Lascaux II entrance replica filetype:bitmap|2
 search|assets/mapsecrets|Diomede Islands satellite filetype:bitmap|3
 search|assets/mapsecrets|Little Diomede village Alaska filetype:bitmap|3
 search|assets/mapsecrets|Alaska Purchase check 1867 treasury warrant filetype:bitmap|2
+search|assets/athos|Simonopetra monastery Mount Athos filetype:bitmap|3
+search|assets/athos|Mount Athos peak aerial filetype:bitmap|3
+search|assets/athos|Mount Athos border Ouranoupoli filetype:bitmap|2
+search|assets/athos|Athos diamonitirion pilgrim permit filetype:bitmap|2
+search|assets/athos|Great Lavra monastery Athos filetype:bitmap|2
