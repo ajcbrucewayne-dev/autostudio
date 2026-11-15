@@ -1,4 +1,4 @@
-# Off The Map: Day 1 upload pack (3 Shorts)
+# Day 1 upload pack: 2× Off The Map + 1× Dark History
 
 Post about 3–4 hours apart. Upload each as a Short (vertical, under 60 s), set "Not made for kids", and turn on "Allow remixing".
 
@@ -21,14 +21,14 @@ Map: NASA, Natural Earth (public domain).
 Photos (Wikimedia Commons): Simonopetra by Thodoris Lakiotis, CC BY-SA 3.0 (creativecommons.org/licenses/by-sa/3.0); Simonopetra Monastery, public domain.
 Tags: mount athos, forbidden places, greece, history, off the map
 
-## 3. China: one time zone
-File: geo_01_china_time.mp4
-Title: China should have 5 time zones. It uses ONE 🕗 #shorts
+## 3. Dark History: the Dancing Plague
+File: darkhistory_01_dancing_plague_parchment_v4.mp4 (64 s; still counts as a Short, because Shorts can be up to 3 minutes)
+Title: In 1518, a town couldn't stop dancing 💀 #shorts
 Description:
-China is about as wide as the USA... but runs on just one clock. Here's why, and what it does to the far west. #geography #maps #china #facts #offthemap #shorts
+Strasbourg, 1518. One woman started dancing in the street... and soon dozens more joined her, for days. Some reportedly danced until they collapsed. #history #darkhistory #mystery #medieval #shorts
+Tags: dancing plague, 1518, strasbourg, dark history, history, mystery
 
-Earth imagery: NASA (public domain). Borders: Natural Earth (public domain).
-Tags: china, time zones, geography, maps, facts, off the map
+(China, the 3rd Off The Map video, is saved for tomorrow.)
 
 ## Pinned comment for each video
 Which place should we unlock next? 👇
