@@ -21,9 +21,9 @@ DESCRIPTION = ("Russia and the USA almost touch in the Bering Strait, and the In
 TAGS = ["diomede islands", "date line", "geography", "maps", "russia", "alaska", "shorts"]
 VOICE, SPEED = "am_michael", 1.07
 CAPTION_Y = 1450
-HOOK = ("3.8 KM APART", "BUT 21 HOURS APART")
+HOOK = ("SAME VIEW. DIFFERENT DAY.", "3.8 KM = 21 HOURS")
 BEATS = [
-    ("hook", "These two islands are just 3.8 kilometers apart... but one of them lives in tomorrow.", 0.2),
+    ("hook", "From this island... you can see tomorrow. It's only 3.8 kilometers away.", 0.2),
     ("where", "Big Diomede belongs to Russia. Little Diomede belongs to the USA. And between them runs a line you can't see.", 0.0),
     ("dateline", "The International Date Line. Cross it heading west, and you jump forward a whole day.", 0.1),
     ("why", "Why does it exist? Earth spins, so a new day has to begin somewhere. So we drew the line through the Pacific, where almost nobody lives.", 0.0),
@@ -93,12 +93,17 @@ def card(c, x, y, w, h, title, sub, col, p):
 
 # ---------------- scenes
 def s_hook(c, s):
-    t = s.t; tt = s.W("hook", "tomorrow")
+    t = s.t
     island_shot(c, s, 1.0 + 0.02 * t)
-    label(c, "RUSSIA", 290, 600, 50, RU, WHITE, s.P(0.2, 0.3)); label(c, "USA", 860, 780, 50, US, WHITE, s.P(0.4, 0.3))
-    arrow(c, (450, 930), (720, 930), s.P(0.6, 0.4), YEL, 10, 26); arrow(c, (720, 930), (450, 930), s.P(0.6, 0.4), YEL, 10, 26)
-    label(c, "3.8 KM", 585, 1010, 52, YEL, OUT, s.P(0.7, 0.3))
-    if t > tt - 0.2: card(c, 290, 1170, 280, 170, "TOMORROW", "MONDAY", RU, s.P(tt - 0.2, 0.3))
+    sl = ease_out(clamp((t - 0.2) / 0.35))                                  # the date line slices between the islands
+    c.new_path(); c.move_to(595, 520); c.line_to(595, 520 + 800 * sl); c.set_source_rgba(*YEL, 0.35); c.set_line_width(28); c.stroke()
+    c.new_path(); c.move_to(595, 520); c.line_to(595, 520 + 800 * sl); c.set_source_rgb(*YEL); c.set_line_width(8); c.stroke()
+    card(c, 290, 720, 300, 190, "TOMORROW", "MONDAY", RU, clamp((t - 0.55) / 0.3))
+    card(c, 840, 1120, 300, 190, "TODAY", "SUNDAY", US, clamp((t - 0.75) / 0.3))
+    km = s.W("hook", "3.8")
+    if t > km - 0.2:
+        arrow(c, (450, 960), (720, 960), s.P(km - 0.2, 0.3), WHITE, 10, 26); arrow(c, (720, 960), (450, 960), s.P(km - 0.2, 0.3), WHITE, 10, 26)
+        label(c, "3.8 KM", 585, 1040, 52, YEL, OUT, s.P(km - 0.1, 0.3))
 
 def s_where(c, s):
     t = s.t; tb = s.W("where", "Big"); tl = s.W("where", "Little"); tline = s.W("where", "line")
@@ -185,7 +190,7 @@ def s_end(c, s):
 SCENES = [("hook", s_hook), ("where", s_where), ("dateline", s_dateline), ("why", s_why), ("history", s_history), ("ice", s_ice), ("end", s_end)]
 
 def impacts(Wt, B):
-    return [Wt("dateline", "jump"), Wt("ice", "illegal")]
+    return [0.35, Wt("dateline", "jump"), Wt("ice", "illegal")]
 
 def sfx(Wt, B, put):
     put(sfx_boom(45, 1.6), 0.0, 0.4); put(sfx_pop(), 0.2, 0.4); put(sfx_pop(700), 0.4, 0.4)

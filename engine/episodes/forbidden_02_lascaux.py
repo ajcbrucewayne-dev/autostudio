@@ -19,9 +19,9 @@ DESCRIPTION = ("17,000-year-old paintings survived the Ice Age... then visitors'
                "Photos: Wikimedia Commons (public domain). Map: NASA, Natural Earth (public domain).")
 TAGS = ["lascaux", "cave paintings", "forbidden places", "history", "france", "shorts"]
 VOICE, SPEED = "am_michael", 1.05
-HOOK = ("THIS CAVE WAS CLOSED", "BECAUSE OF OUR BREATH")
+HOOK = ("CLOSED SINCE 1963", "BECAUSE OF US")
 BEATS = [
-    ("hook", "This cave was closed... because our breath was destroying it.", 0.3),
+    ("hook", "Your breath could destroy this ancient painting.", 0.3),
     ("find", "In 1940, a group of teenagers found it in France. Its walls were covered in paintings, around seventeen thousand years old.", 0.0),
     ("crowds", "It opened to the public in 1948, and huge crowds poured in.", 0.0),
     ("damage", "But every visitor breathed out carbon dioxide, heat and moisture. And in 1962, green slime started spreading across the walls.", 0.2),
@@ -107,9 +107,14 @@ def earth(c, t, lon0, lat0, R, cy=1000):
 # ---------------- scenes
 def s_hook(c, s):
     t = s.t
-    full(c, s, "replica", 1.0, 1.12, (0.55, 0.45), 4.0)
-    breath(c, t, -2.0, 20, 0.9)
-    stamp(c, "CLOSED", W / 2, 1180, 120, s.P(s.W("hook", "closed") - 0.1, 0.3))
+    bg_cinema(c, t, seed=13, top="#0a0705", bot="#2a1a0e", neb=(("#5a3a1a", 0.4), ("#3a2a1a", 0.3), ("#6a4a2a", 0.2)))
+    framed(c, "wall", W / 2, 820, 1000, 660, 1.0, -0.02, 1.0 + 0.05 * t)       # the real 17,000-year-old painting, on screen from frame 1
+    bx = lerp(-200, 540, ease_out(t / 0.9))                                  # a breath cloud blows straight into it
+    for k in range(5): cloud(c, bx - k * 90, 820 + math.sin(k * 1.7) * 120, 70 - k * 8, (0.9, 0.95, 1), 0.5 - k * 0.08)
+    text(c, "CO2", bx + 40, 760, 46, (0.85, 0.95, 1), outline=None, alpha=clamp(t / 0.4))
+    slime(c, t, 0.45 * clamp((t - 0.9) / 2.0))
+    stamp(c, "CLOSED", W / 2, 1230, 120, clamp((t - 1.6) / 0.25))
+    text(c, PH["wall"][1], W / 2, 1880, 26, WHITE, alpha=0.8)
 
 def s_find(c, s):
     t = s.t; tf = s.W("find", "France"); tp = s.W("find", "paintings"); ty = s.W("find", "seventeen")
@@ -180,7 +185,7 @@ def s_end(c, s):
 SCENES = [("hook", s_hook), ("find", s_find), ("crowds", s_crowds), ("damage", s_damage), ("closed", s_closed), ("today", s_today), ("end", s_end)]
 
 def impacts(Wt, B):
-    return [Wt("hook", "closed"), Wt("closed", "locked")]
+    return [1.6, Wt("closed", "locked")]
 
 def sfx(Wt, B, put):
     put(sfx_boom(38, 2.2), 0.0, 0.5); put(sfx_whoosh(2, 2.0), 0.2, 0.3)

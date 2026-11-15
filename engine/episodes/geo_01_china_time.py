@@ -17,9 +17,9 @@ DESCRIPTION = ("China is about as wide as the USA... but uses just one clock. He
                "#geography #maps #china #facts #shorts\n\nEarth imagery: NASA (public domain). Borders: Natural Earth (public domain).")
 TAGS = ["china", "time zones", "geography", "maps", "facts", "shorts"]
 VOICE, SPEED = "am_michael", 1.08
-HOOK = ("CHINA IS AS WIDE AS THE USA", "BUT HAS ONE TIME ZONE?")
+HOOK = ("AS WIDE AS THE USA", "5 TIME ZONES → 1 ?!")
 BEATS = [
-    ("hook", "China is about as wide as the United States... so why does it use only one time zone?", 0.2),
+    ("hook", "China should have five time zones... but it uses only one.", 0.3),
     ("us", "The US uses four main time zones. China? Just one. Beijing time.", 0.1),
     ("should", "By the sun, China should have five.", 0.1),
     ("why", "And before 1949, it actually did. Then the new government merged them all into one, to unite the country.", 0.0),
@@ -53,13 +53,23 @@ def clock_icon(c, x, y, r, hour, p=1.0, col=WHITE):
 
 # ---------------- scenes
 def s_hook(c, s):
-    t = s.t; u = clamp(t / 3.0)
-    lon0 = lerp(105, 104, u); R = lerp(900, 1050, ease(u))
-    earth(c, t, lon0, 34, R, 1040)
-    pulse = 0.6 + 0.4 * math.sin(t * 6)
-    globe.fill_region(c, china(), lon0, 34, R, ZC[0], 0.55 + 0.25 * pulse, W / 2, 1040)
-    clock_icon(c, *globe.lonlat_to_screen(104, 34, lon0, 34, R, W / 2, 1040)[:2], 70, 8.0, 1.0)
-    text(c, "ONLY 1 ?", 540, 600, 110, YEL)
+    t = s.t; to = s.W("hook", "one")
+    lon0, lat0, R = 104, 35, 1350
+    earth(c, t, lon0, lat0, R, 1000)
+    merge = ease(clamp((t - to + 0.15) / 0.35))          # the 5 solar zones snap into ONE red zone on the word "one"
+    globe.region_path(c, china(), lon0, lat0, R, W / 2, 1000); c.save(); c.clip()
+    for i in range(5):
+        a = 67.5 + 15 * i; globe.meridian_band(c, a, a + 15, 15, 56, lon0, lat0, R, W / 2, 1000)
+        c.set_source_rgba(*mix(ZC[i], ZC[0], merge), 0.85); c.fill()
+    c.restore()
+    globe.region_path(c, china(), lon0, lat0, R, W / 2, 1000); c.set_source_rgba(1, 1, 1, 0.9); c.set_line_width(3); c.stroke()
+    if merge < 1:
+        for i in range(5):
+            x, y, vis = globe.lonlat_to_screen(75 + 15 * i, 31 if i else 39, lon0, lat0, R, W / 2, 1000)
+            if vis: text(c, f"+{5 + i}", max(x, 70), y, 56, WHITE, alpha=1 - merge)
+    else:
+        clock_icon(c, *globe.lonlat_to_screen(104, 34, lon0, lat0, R, W / 2, 1000)[:2], 80, 8.0, clamp((t - to - 0.2) / 0.3))
+        pop_text(c, "ONLY ONE", W / 2, 480, 110, s.P(to + 0.1, 0.3), RED)
 
 def s_us(c, s):
     t = s.t; tc = s.W("us", "China"); tb = s.W("us", "Beijing")
@@ -157,7 +167,7 @@ def s_end(c, s):
 SCENES = [("hook", s_hook), ("us", s_us), ("should", s_should), ("why", s_why), ("weird", s_weird), ("twist", s_twist), ("end", s_end)]
 
 def impacts(Wt, B):
-    return [Wt("us", "China"), Wt("why", "merged")]
+    return [Wt("hook", "one"), Wt("us", "China"), Wt("why", "merged")]
 
 def sfx(Wt, B, put):
     put(sfx_boom(45, 1.4), 0.0, 0.4)
