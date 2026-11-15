@@ -635,7 +635,7 @@ def build_audio(ep, beats, vo, Wt, B):
         if i: place(fx, sfx_whoosh(i), Wt(b) - 0.2, 0.35)
     if hasattr(ep, "sfx"): ep.sfx(Wt, B, lambda clip, t, g=1.0: place(fx, clip, t, g))
     hop = 480; e = np.sqrt(np.convolve(vo ** 2, np.ones(hop) / hop, "same")); duck = np.convolve(1 - 0.5 * np.clip(e / 0.05, 0, 1), np.ones(4800) / 4800, "same")
-    mix_ = vo + m * (0.42 if mus else 0.28) * duck + fx * 0.6
+    mix_ = vo + m * (0.22 if mus else 0.28) * duck + fx * 0.6
     return (np.tanh(mix_ * 1.1) * 0.92).astype(np.float32)
 
 def main():

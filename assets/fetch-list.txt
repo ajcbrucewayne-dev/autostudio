@@ -29,3 +29,9 @@ search|assets/music|Kevin MacLeod Lightless Dawn filetype:audio|2
 search|assets/music|Kevin MacLeod Spy Glass filetype:audio|2
 search|assets/music|Kevin MacLeod mystery filetype:audio|4
 search|assets/music|Kevin MacLeod Long Note filetype:audio|2
+search|assets/music|Kevin MacLeod Comfortable Mystery filetype:audio|2
+search|assets/music|Kevin MacLeod Floating Cities filetype:audio|2
+search|assets/music|Kevin MacLeod Cipher filetype:audio|2
+search|assets/music|Kevin MacLeod Clean Soul filetype:audio|2
+search|assets/music|Kevin MacLeod Mesmerize filetype:audio|2
+search|assets/music|Kevin MacLeod Lost Frontier filetype:audio|2
