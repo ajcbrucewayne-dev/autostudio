@@ -377,6 +377,10 @@ def build_audio(meta, vo, Wt, B):
     jenv = env(0, Wt("rewind") + 0.2, 0.01, 0.4) * 0.8 + env(Wt("cure", "hired") - 0.1, Wt("shrine", "banned") + 0.35, 0.3, 0.04) * 1.0 \
         + env(Wt("end", "Would"), n / SR, 1.5, 1.0) * 0.45
     mus += J * jenv
+    if os.environ.get("MUSIC"):   # real music bed (audible on phone speakers) replaces the synth drone + jig
+        from cartoon import music_track
+        mp = os.environ["MUSIC"]; mp = mp if os.path.isabs(mp) else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", mp)
+        mus = music_track(mp, n) * 1.35
     sfx = np.zeros(n, np.float32)
     for name, _ in PLATES:
         st = B[name]["t0"]
@@ -410,6 +414,10 @@ def main():
         print("beats:", [(m["name"], round(m["t0"], 2)) for m in meta], "total", round(total, 1)); return
     import soundfile as sf
     wav = os.path.join(work, "dancing_mix.wav"); sf.write(wav, build_audio(meta, vo, Wt, B), SR)
+    if "--remix" in sys.argv:   # swap only the soundtrack of an already-rendered video
+        src = sys.argv[sys.argv.index("--remix") + 1]
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-i", wav, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+                        "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out], check=True); print("REMIXED", out); return
     nf = int(total * FPS)
     ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS),
                            "-i", "-", "-i", wav, "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",

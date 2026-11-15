@@ -24,10 +24,12 @@ Music: "Lightless Dawn" by Kevin MacLeod (incompetech.com), CC BY 3.0 (creativec
 Tags: mount athos, forbidden places, greece, history, off the map
 
 ## 3. Dark History: the Dancing Plague
-File: darkhistory_01_dancing_plague_parchment_v4.mp4 (64 s; still counts as a Short, because Shorts can be up to 3 minutes)
+File: DH_dancing_plague_music.mp4 (new version with music) (64 s; still counts as a Short, because Shorts can be up to 3 minutes)
 Title: In 1518, a town couldn't stop dancing 💀 #shorts
 Description:
 Strasbourg, 1518. One woman started dancing in the street... and soon dozens more joined her, for days. Some reportedly danced until they collapsed. #history #darkhistory #mystery #medieval #shorts
+
+Music: "The Snow Queen" by Kevin MacLeod (incompetech.com), CC BY 4.0 (creativecommons.org/licenses/by/4.0).
 Tags: dancing plague, 1518, strasbourg, dark history, history, mystery
 
 (China, the 3rd Off The Map video, is saved for tomorrow.)
