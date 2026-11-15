@@ -380,7 +380,7 @@ def build_audio(meta, vo, Wt, B):
     if os.environ.get("MUSIC"):   # real music bed (audible on phone speakers) replaces the synth drone + jig
         from cartoon import music_track
         mp = os.environ["MUSIC"]; mp = mp if os.path.isabs(mp) else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", mp)
-        mus = music_track(mp, n) * 1.35
+        mus = music_track(mp, n) * 0.7
     sfx = np.zeros(n, np.float32)
     for name, _ in PLATES:
         st = B[name]["t0"]
