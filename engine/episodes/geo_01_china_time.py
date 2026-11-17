@@ -14,7 +14,9 @@ NAME = "geo_01_china_time"
 LOOK = "cinematic"
 TITLE = "China should have 5 time zones. It uses ONE 🕗 #shorts"
 DESCRIPTION = ("China is about as wide as the USA... but uses just one clock. Here's why, and what it does to the far west. "
-               "#geography #maps #china #facts #shorts\n\nEarth imagery: NASA (public domain). Borders: Natural Earth (public domain).")
+               "#geography #maps #china #facts #shorts\n\nEarth imagery: NASA (public domain). Borders: Natural Earth (public domain)."
+               "\nMusic: \"Comfortable Mystery\" by Kevin MacLeod (incompetech.com), CC BY 3.0 (creativecommons.org/licenses/by/3.0).")
+MUSIC = "assets/music/Comfortable_Mystery_(ISRC_USUAN1100287).mp3"
 TAGS = ["china", "time zones", "geography", "maps", "facts", "shorts"]
 VOICE, SPEED = "am_michael", 1.08
 HOOK = ("AS WIDE AS THE USA", "5 TIME ZONES → 1 ?!")
