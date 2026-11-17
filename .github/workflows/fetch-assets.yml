@@ -36,7 +36,7 @@ jobs:
           mv /tmp/list2 /tmp/list; echo "--- files to fetch:"; cat /tmp/list
           # also save each file's licence + author so credits are never guessed
           touch assets/LICENSES_fetched.txt
-          while IFS='|' read -r DEST N; do
+          while IFS='|' read -r DEST N CROP; do
             grep -q "^$N | [^|]*[A-Za-z]" assets/LICENSES_fetched.txt && continue      # licence already recorded
             for try in 1 2 3; do
             sleep $((try * 8))
@@ -50,8 +50,9 @@ jobs:
           print(sys.argv[1]+' | '+g('LicenseShortName')+' | '+g('Artist')+' | '+g('ImageDescription')[:200])" "$N" > /tmp/lic && { cat /tmp/lic >> assets/LICENSES_fetched.txt; break; } || true
             done
           done < /tmp/list
-          while IFS='|' read -r DEST N; do
-            mkdir -p "$DEST"; [ -s "$DEST/$N" ] && { echo "have $N"; continue; }
+          while IFS='|' read -r DEST N CROP; do
+            OUTN="$N"; [ -n "$CROP" ] && OUTN="crop_${CROP//,/_}_$N"
+            mkdir -p "$DEST"; [ -s "$DEST/$OUTN" ] && { echo "have $OUTN"; continue; }
             H=$(printf "%s" "$N" | md5sum | cut -c1-32)
             URL="https://upload.wikimedia.org/wikipedia/commons/${H:0:1}/${H:0:2}/$N"
             for i in 1 2 3 4; do
@@ -59,6 +60,12 @@ jobs:
               echo "try $i got $code"; sleep $((i * 20))
             done
             [ "$code" = "200" ] || { echo "skipped (throttled): $N"; rm -f "$DEST/$N"; continue; }
+            if [ -n "$CROP" ]; then   # "dest|File|x0,y0,x1,y1": keep only that pixel box of a huge image (no downscale)
+              python3 -c "
+          import sys; from PIL import Image; Image.MAX_IMAGE_PIXELS = None
+          b = tuple(int(v) for v in sys.argv[2].split(',')); im = Image.open(sys.argv[1]).crop(b); im.convert('RGB').save(sys.argv[3], quality=92)" "$DEST/$N" "$CROP" "$DEST/$OUTN"
+              rm -f "$DEST/$N"; ls -la "$DEST/$OUTN"; continue
+            fi
             case "$N" in *.jpg|*.jpeg|*.png|*.tif)   # keep the repo light: cap huge images at 4096 px
               if [ "$(stat -c%s "$DEST/$N")" -gt 8000000 ]; then python3 -c "
           import sys; from PIL import Image; Image.MAX_IMAGE_PIXELS = None
