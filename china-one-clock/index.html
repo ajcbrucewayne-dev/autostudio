@@ -1,0 +1,358 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>One Clock</title>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<style>
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Regular.ttf);font-weight:400}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Medium.ttf);font-weight:500}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-SemiBold.ttf);font-weight:600}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+html,body{margin:0;background:#05080c;overflow:hidden}
+canvas{position:absolute;left:0;top:0}
+</style></head>
+<body>
+<script type="module">
+// "One Clock": one winter morning crossing China. Timeline in TREATMENT.md; numbers in FACTS.md.
+import * as THREE from 'three';
+import { makePost } from './post.js';
+import { clamp, lerp, seg, ss, eo, eio, ei, mulberry } from '/core/lib.js';
+import { DUR, CAM, CLOCK, LINES, HITS, CITIES, sunriseLon } from './timeline.js';
+
+const Wd = innerWidth, Ht = innerHeight, Q = new URLSearchParams(location.search);
+const T0 = +(Q.get('t0') || 0);
+const D2R = Math.PI / 180, U = 100;                       // world unit = 100 km
+const [meta, china, sunp, hraw, vdur] = await Promise.all(['assets/meta.json', 'assets/china.json', 'data/sun.json'].map(u => fetch(u).then(r => r.json()))
+  .concat([fetch('assets/height_mesh.bin').then(r => r.arrayBuffer()), fetch('out/voice/dur.json').then(r => r.json())]));
+const hbuf = new Float32Array(hraw), EX = meta.EX;
+const KX = 111.32 * Math.cos(meta.lat0 * D2R) / U, KZ = 111.32 / U;      // equidistant cylindrical, standard parallel 35°N
+const xz = (lon, lat) => [(lon - 105) * KX, -(lat - 35) * KZ];
+function hAt(lon, lat) {
+  const gx = (lon - 60) / 90 * (meta.GW - 1), gz = (60 - lat) / 60 * (meta.GH - 1);
+  const x0 = clamp(Math.floor(gx), 0, meta.GW - 2), z0 = clamp(Math.floor(gz), 0, meta.GH - 2), fx = clamp(gx - x0), fz = clamp(gz - z0);
+  const a = hbuf[z0 * meta.GW + x0], b = hbuf[z0 * meta.GW + x0 + 1], c = hbuf[(z0 + 1) * meta.GW + x0], d = hbuf[(z0 + 1) * meta.GW + x0 + 1];
+  return (a * (1 - fx) + b * fx) * (1 - fz) + (c * (1 - fx) + d * fx) * fz;
+}
+const yOf = h => Math.max(h, 0) / 1000 * EX / U;
+const geo = (lon, lat, lift = 0) => { const [X, Z] = xz(lon, lat); return new THREE.Vector3(X, yOf(hAt(lon, lat)) + lift, Z); };
+
+// ---------- renderer ----------
+const SS = +(Q.get('ss') || 1.5);
+const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(Wd, Ht);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.4;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const HAZE = new THREE.Color(0x6a7684);
+{ // sky: deep navy at the top of frame, a pale atmospheric band where the map fades out
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512; const q = c.getContext('2d'); const gr = q.createLinearGradient(0, 0, 0, 512);
+  gr.addColorStop(0, '#04070c'); gr.addColorStop(.55, '#0b1622'); gr.addColorStop(.8, '#24384c'); gr.addColorStop(1, '#3a4c5c'); q.fillStyle = gr; q.fillRect(0, 0, 4, 512);
+  const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; scene.background = tx; }
+const camera = new THREE.PerspectiveCamera(40, Wd / Ht, 0.05, 600);
+
+const tl = new THREE.TextureLoader(), load = u => new Promise((r, e) => tl.load(u, r, undefined, e));
+const [albedo, normalT, maskT] = await Promise.all(['assets/albedo.jpg', 'assets/normal.png', 'assets/china_mask.png'].map(load));
+albedo.colorSpace = THREE.SRGBColorSpace; for (const t of [albedo, normalT, maskT]) { t.anisotropy = 8; t.generateMipmaps = true; }
+
+// ---------- the sun: real position for 21 Dec, per fragment (hour angle from longitude) ----------
+const SUN = { utc: { value: 2.5 }, dec: { value: sunp.dec_rad }, eqt: { value: sunp.eqt_min } };
+const SUN_GLSL = `uniform float utc, dec, eqt;
+  // local sun direction in map space (x east, y up, z south) and elevation (rad)
+  vec4 sunDir(float lon, float lat){
+    float ph = radians(lat), H = radians((utc * 60. + eqt + 4. * lon) / 4. - 180.);
+    float se = sin(ph) * sin(dec) + cos(ph) * cos(dec) * cos(H); float el = asin(clamp(se, -1., 1.));
+    float az = atan(sin(H), cos(H) * sin(ph) - tan(dec) * cos(ph)) + 3.14159265;     // from north, clockwise
+    vec3 d = vec3(sin(az) * cos(el), sin(el), -cos(az) * cos(el));
+    return vec4(d, el); }`;
+
+// ---------- terrain ----------
+const TER = { fill: { value: 0 }, fillR: { value: 0 }, fillC: { value: new THREE.Vector2(116.4, 39.9) }, zones: { value: 0 }, zoneOff: { value: 0 },
+  night: { value: 1 }, haze: { value: HAZE }, camP: { value: new THREE.Vector3() }, fogD: { value: 140 }, resY: { value: 1920 } };
+const terMat = new THREE.ShaderMaterial({
+  uniforms: { tAlb: { value: albedo }, tNrm: { value: normalT }, tMask: { value: maskT }, ...SUN, ...TER },
+  vertexShader: `attribute vec2 aLL; varying vec2 vLL; varying vec2 vUv; varying vec3 vW;
+    void main(){ vLL = aLL; vUv = vec2((aLL.x - 60.) / 90., (aLL.y) / 60.); vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: `varying vec2 vLL; varying vec2 vUv; varying vec3 vW; uniform sampler2D tAlb, tNrm, tMask;
+    uniform float fill, fillR, zones, zoneOff, night, fogD, resY; uniform vec2 fillC; uniform vec3 haze, camP;
+    ${SUN_GLSL}
+    vec3 lin(vec3 c){ return pow(c, vec3(2.2)); }
+    vec3 skyAt(float v){ // the same gradient as the background (v = 0 top of frame)
+      vec3 a = vec3(.016,.027,.047), b = vec3(.043,.086,.133), c = vec3(.141,.220,.298), d = vec3(.227,.298,.361);
+      vec3 s = v < .55 ? mix(a, b, v / .55) : v < .8 ? mix(b, c, (v - .55) / .25) : mix(c, d, (v - .8) / .2); return lin(s); }
+    void main(){
+      vec3 alb = lin(texture2D(tAlb, vUv).rgb);
+      vec3 n = texture2D(tNrm, vUv).rgb * 2. - 1.; n = normalize(vec3(n.x, n.y, n.z));
+      vec4 s = sunDir(vLL.x, vLL.y);
+      float el = s.w, day = smoothstep(-.035, .03, el);                       // civil-ish twilight band
+      float lam = max(dot(n, s.xyz), 0.) * smoothstep(-.01, .05, el);
+      float twi = exp(-pow((el + .01) / .035, 2.));                           // warm dawn band along the terminator
+      vec3 sunC = mix(vec3(1., .55, .28), vec3(1., .93, .82), smoothstep(.0, .35, el));
+      vec3 sky = vec3(.30, .38, .48) * (.35 + .65 * day) * (.55 + .45 * n.y);
+      vec3 col = alb * (sunC * lam * 3.0 + sky * .9);
+      col += alb * vec3(1., .45, .2) * twi * .35;
+      vec3 nightC = alb * vec3(.16, .21, .34) * .7 + vec3(.008, .014, .03);
+      col = mix(nightC, col, mix(1., day, night));
+      float m = texture2D(tMask, vUv).r;
+      // five solar zones (bands of 15 deg), drawn as a faint alternating veil inside China
+      float band = floor((vLL.x - 67.5) / 15.); float stripe = mod(band, 2.);
+      col = mix(col, col * (1. + .25 * stripe) + vec3(.02, .03, .04) * stripe, zones * m * .8);
+      // one country, one clock: amber flood from Beijing outward
+      float dd = length((vLL - fillC) * vec2(cos(radians(35.)), 1.));
+      float front = smoothstep(fillR, fillR - 3., dd);
+      vec3 amber = vec3(1., .55, .16);
+      col = mix(col, col * .55 + amber * (.10 + .5 * lam + .05), fill * front * m * .55);
+      col += amber * fill * m * exp(-pow((dd - fillR) / 1.2, 2.)) * .35;      // bright scan front
+      float dist = length(vW - camP); float fog = 1. - exp(-pow(dist / fogD, 2.));
+      col = mix(col, lin(haze) * (.25 + .75 * day), fog * .6);
+      // the map's edges dissolve into atmosphere (north and the far east/west)
+      float edge = smoothstep(50., 59.5, vLL.y) + smoothstep(68., 61., vLL.x) + smoothstep(142., 149., vLL.x) + smoothstep(6., 1., vLL.y);
+      col = mix(col, skyAt(1. - gl_FragCoord.y / resY), clamp(edge, 0., 1.));
+      gl_FragColor = vec4(col, 1.);
+    }`,
+});
+{
+  const GW = meta.GW, GH = meta.GH, pos = new Float32Array(GW * GH * 3), ll = new Float32Array(GW * GH * 2), idx = [];
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const lon = 60 + i / (GW - 1) * 90, lat = 60 - j / (GH - 1) * 60, k = j * GW + i, [X, Z] = xz(lon, lat);
+    pos.set([X, yOf(hbuf[k]), Z], k * 3); ll.set([lon, lat], k * 2);
+  }
+  for (let j = 0; j < GH - 1; j++) for (let i = 0; i < GW - 1; i++) { const a = j * GW + i; idx.push(a, a + GW, a + 1, a + 1, a + GW, a + GW + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aLL', new THREE.BufferAttribute(ll, 2));
+  g.setIndex(idx); scene.add(new THREE.Mesh(g, terMat));
+}
+
+// ---------- glowing ribbons (width = max(world, pixels)) ----------
+const PIXK = 2 * Math.tan(camera.fov / 2 * D2R) / Ht;
+const RIB_V = `attribute float aSide; attribute vec3 aNorm; attribute float aAlong; uniform float wW, pxW, pixK; varying float vSide, vAlong;
+  void main(){ vec4 wp = modelMatrix * vec4(position, 1.); float pw = length(cameraPosition - wp.xyz) * pixK;
+    float hw = max(wW * .5, pxW * .5 * pw); wp.xyz += aNorm * aSide * hw; vSide = aSide; vAlong = aAlong; gl_Position = projectionMatrix * viewMatrix * wp; }`;
+const RIB_F = `varying float vSide, vAlong; uniform vec3 col; uniform float k, inten, rev, soft, head, headAmt, dash, duty, base, L, dashPx;
+  void main(){ float g = exp(-vSide * vSide * k); float vis = 1. - smoothstep(rev - soft, rev, vAlong); if (vis <= 0.) discard;
+    float a = base; if (dash > 0.) a *= step(fract(vAlong / dash), duty);
+    a += headAmt * exp(-pow((vAlong - head) / soft, 2.));
+    gl_FragColor = vec4(col * g * a * inten * vis, 1.); }`;
+function ribbon(pts, o = {}) {
+  const n = pts.length, pos = new Float32Array(n * 6), side = new Float32Array(n * 2), nrm = new Float32Array(n * 6), al = new Float32Array(n * 2), idx = []; let L = 0;
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], t = new THREE.Vector3().subVectors(b, a);
+    const nv = new THREE.Vector3(-t.z, 0, t.x).normalize(); if (i) L += pts[i].distanceTo(pts[i - 1]);
+    for (let s = 0; s < 2; s++) { const q = 2 * i + s; pos.set([pts[i].x, pts[i].y, pts[i].z], q * 3); side[q] = s ? -1 : 1; nrm.set([nv.x, nv.y, nv.z], q * 3); al[q] = L; }
+    if (i) { const q = 2 * i; idx.push(q - 2, q - 1, q, q - 1, q + 1, q); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
+  g.setAttribute('aNorm', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('aAlong', new THREE.BufferAttribute(al, 1)); g.setIndex(idx);
+  const u = { col: { value: new THREE.Color(o.col ?? 0xffa63d) }, k: { value: o.k ?? 3 }, inten: { value: 0 }, wW: { value: o.wW ?? 0 }, pxW: { value: o.pxW ?? 2 },
+    pixK: { value: PIXK }, rev: { value: 1e9 }, soft: { value: o.soft ?? .3 }, head: { value: -1e6 }, headAmt: { value: 0 }, dash: { value: o.dash ?? 0 },
+    duty: { value: o.duty ?? .55 }, base: { value: o.base ?? 1 }, L: { value: L }, dashPx: { value: 0 } };
+  const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: u, vertexShader: RIB_V, fragmentShader: RIB_F, side: THREE.DoubleSide, transparent: true,
+    depthWrite: false, depthTest: o.depthTest ?? true, blending: THREE.AdditiveBlending, toneMapped: false }));
+  m.renderOrder = o.order ?? 2; m.frustumCulled = false; scene.add(m); m.u = u; m.L = L; return m;
+}
+const drape = (ll, lift = .03) => ll.map(([lo, la]) => geo(lo, la, lift));
+const densify = (ll, step = .15) => { const o = []; for (let i = 0; i < ll.length - 1; i++) { const [a, b] = ll[i], [c, d] = ll[i + 1]; const n = Math.max(1, Math.ceil(Math.hypot(c - a, d - b) / step)); for (let k = 0; k < n; k++) o.push([a + (c - a) * k / n, b + (d - b) * k / n]); } o.push(ll[ll.length - 1]); return o; };
+
+// China outline (Natural Earth 1:10m, China view) — glow + core; South China Sea dashes
+const outline = china.rings.filter(r => r.length > 30 || Math.abs(r[0][0] - 121) < 2).map(r => {
+  const p = drape(densify(r.concat([r[0]]), .12), .04);
+  return { glow: ribbon(p, { pxW: 10, k: 3, base: .25 }), core: ribbon(p, { pxW: 2.2, k: 1.4, base: 1.3, col: 0xffc36b }) };
+});
+const dashes = china.dash.map(d => ribbon(drape(densify(d, .1), .02), { pxW: 2.4, k: 1.4, base: 1.0, col: 0xffc36b }));
+
+// five solar-zone boundaries: meridians 67.5…127.5 clipped to China's latitude span (cool white)
+function chinaSpanAt(lon) { let lo = 90, hi = -90; for (const r of china.rings) for (let i = 0; i < r.length - 1; i++) { const [a, b] = r[i], [c, d] = r[i + 1]; if ((a - lon) * (c - lon) <= 0 && a !== c) { const la = b + (d - b) * (lon - a) / (c - a); lo = Math.min(lo, la); hi = Math.max(hi, la); } } return [lo, hi]; }
+const ZLON = [82.5, 97.5, 112.5, 127.5];
+const zoneLines = ZLON.map(lon => { const [a, b] = chinaSpanAt(lon); const ll = []; for (let la = b; la >= a; la -= .1) ll.push([lon, la]); return ribbon(drape(ll, .05), { pxW: 2.6, k: 1.3, base: 1.1, col: 0xd9e6ee, order: 3 }); });
+
+// ---------- ruler, Beijing ring, dawn line ----------
+const ICE = 0xd9e6ee, AMB = 0xffa63d, AMB2 = 0xffc36b, RULE = 0xf6eee0, TEAL = 0x2fa3b0;
+const WEST = [73.5, 39.4], EAST = [134.8, 48.4], RLAT = 20.5;
+const rulerPts = densify([[WEST[0], RLAT], [EAST[0], RLAT]], .25).map(([lo, la]) => geo(lo, la, .5).setY(.6));
+const ruler = ribbon(rulerPts, { pxW: 3, k: 1.2, base: 1.2, col: RULE, order: 4, depthTest: false });
+const leaders = [WEST, EAST].map(p => ribbon(densify([[p[0], RLAT], p], .2).map(([lo, la]) => geo(lo, la, .3).setY(Math.max(.6, geo(lo, la, .3).y))), { pxW: 1.6, k: 1, base: .8, dash: .5, col: ICE, order: 4, depthTest: false }));
+let dawnRib = null;
+function dawnLine(utc, inten) {
+  if (dawnRib) { for (const m of [dawnRib, ...dawnRib.children]) { m.geometry.dispose(); m.material.dispose(); } scene.remove(dawnRib); dawnRib = null; }
+  if (inten <= 0) return;
+  const ll = []; for (let la = 17; la <= 55; la += .5) { const lo = sunriseLon(la, utc, sunp.dec_rad, sunp.eqt_min); if (lo > 60.5 && lo < 149.5) ll.push([lo, la]); }
+  if (ll.length < 3) return;
+  dawnRib = ribbon(drape(ll, .15), { pxW: 14, k: 2.4, base: .5, col: 0xffd9a0, order: 3 }); dawnRib.u.inten.value = inten;
+  const core = ribbon(drape(ll, .16), { pxW: 2.2, k: 1.2, base: 1.4, col: 0xfff1dc, order: 3 }); core.u.inten.value = inten;
+  scene.remove(core); dawnRib.add(core);
+}
+
+// ---------- post ----------
+const { composer, dof, bloom, vig } = makePost(renderer, scene, camera, Wd, Ht, { ssaa: SS, ao: false });
+bloom.strength = .55; bloom.radius = .45; bloom.threshold = 1.1;
+
+// ---------- camera ----------
+function setCam(c) {      // c = {lon, lat, d, tilt (deg from vertical), head (deg; 0 = north up, -90 = looking west)}
+  const [X, Z] = xz(c.lon, c.lat), Y = yOf(hAt(c.lon, c.lat)) * .5;
+  const th = c.tilt * D2R, hd = c.head * D2R;
+  const off = new THREE.Vector3(-Math.sin(hd) * Math.sin(th), Math.cos(th), Math.cos(hd) * Math.sin(th)).multiplyScalar(c.d);
+  camera.position.set(X + off.x, Y + off.y, Z + off.z); camera.up.set(0, 1, 0);
+  camera.lookAt(X, Y, Z); camera.updateMatrixWorld();
+  TER.camP.value.copy(camera.position); TER.resY.value = Ht * SS; TER.fogD.value = Math.max(60, c.d * 2.2);
+  dof.focus = c.d; dof.aper = c.ap || 0; dof.maxCoc = c.ap ? 10 : 0;
+}
+
+// ---------- 2D overlay ----------
+const ov = document.createElement('canvas'); ov.width = Wd; ov.height = Ht; ov.style.width = Wd + 'px'; ov.style.height = Ht + 'px'; document.body.appendChild(ov);
+const g = ov.getContext('2d');
+const proj = (lon, lat, lift = .1) => { const v = geo(lon, lat, lift).project(camera); return [(v.x + 1) / 2 * Wd, (1 - v.y) / 2 * Ht, v.z < 1 && Math.abs(v.x) < 1.2 && Math.abs(v.y) < 1.2]; };
+let TX = [];
+const C = { amber: '#ffa63d', amber2: '#ffc36b', ice: '#d9e6ee', rule: '#f6eee0', teal: '#2fa3b0', teal2: '#8fd6de', ink: '#2b2119' };
+function txt(id, s, x, y, o = {}) {
+  const a = o.a ?? 1; if (a <= 0.01 || !s) return;
+  g.save(); g.globalAlpha = a; g.font = `${o.w ?? 600} ${o.size ?? 34}px Barlow`; g.letterSpacing = (o.track ?? 0) + 'px';
+  g.textAlign = o.align ?? 'center'; g.textBaseline = 'alphabetic';
+  if (o.shadow !== false) { g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = o.blur ?? 14; }
+  g.fillStyle = o.col ?? C.rule; g.fillText(s, x, y); const w = g.measureText(s).width; g.restore();
+  const x0 = (o.align === 'left') ? x : (o.align === 'right') ? x - w : x - w / 2;
+  if (a > .95) TX.push({ id, text: s, x0, y0: y - (o.size ?? 34), x1: x0 + w, y1: y + 6, ...(o.pass ? { pass: true } : {}) });
+}
+function dot(x, y, r, col, a = 1, ring = 0) {
+  g.save(); g.globalAlpha = a; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 18; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  if (ring > 0) { g.globalAlpha = a * (1 - ring); g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.arc(x, y, r + ring * 70, 0, Math.PI * 2); g.stroke(); }
+  g.restore();
+}
+function leader(x0, y0, x1, y1, col, a) { g.save(); g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.restore(); }
+const hhmm = h => { const m = Math.floor(h * 60 + 1e-6); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const env = (t, a, b, fi = .3, fo = .3) => Math.min(seg(t, a, a + fi), 1 - seg(t, b - fo, b));
+const srBJ = c => { // sunrise of a city in Beijing time (hours)
+  const ph = c.lat * D2R, dec = sunp.dec_rad, cc = (Math.sin(-0.833 * D2R) - Math.sin(ph) * Math.sin(dec)) / (Math.cos(ph) * Math.cos(dec));
+  const H = Math.acos(cc) / D2R; return (720 - 4 * (c.lon + H) - sunp.eqt_min + 480) / 60; };
+CITIES.forEach(c => c.sr = srBJ(c));
+
+// subtitle cues from the voice durations (a two-part line is split by length)
+const CUES = []; for (const [id, t0, parts] of LINES) { const d = vdur[id], tot = parts.reduce((a, p) => a + p.length, 0); let s = t0;
+  parts.forEach((p, i) => { const dd = d * p.length / tot; CUES.push({ t0: s, t1: s + dd + (i === parts.length - 1 ? .45 : .05), text: p }); s += dd; }); }
+window.CUES = CUES;
+function subtitles(t) {
+  const c = CUES.find(c => t >= c.t0 - .05 && t < c.t1); if (!c) return;
+  const a = Math.min(seg(t, c.t0 - .05, c.t0 + .1), 1 - seg(t, c.t1 - .12, c.t1));
+  const x = 64, y = Ht - 230, size = 46;
+  g.save(); const gr = g.createLinearGradient(0, Ht - 380, 0, Ht); gr.addColorStop(0, 'rgba(5,8,12,0)'); gr.addColorStop(1, 'rgba(5,8,12,.62)');
+  g.fillStyle = gr; g.globalAlpha = a; g.fillRect(0, Ht - 380, Wd, 380);
+  g.fillStyle = C.amber; g.fillRect(x - 22, y - size + 4, 5, size + 8); g.restore();
+  txt('sub', c.text, x, y, { size, w: 600, align: 'left', a, col: '#f4efe6', blur: 8 });
+}
+
+// ---------- events for the mixer ----------
+const EV = [];
+[.25, .45, .65, .85].forEach(t => EV.push({ t, type: 'tick' }));
+EV.push({ t: HITS.one, type: 'hit' }, { t: HITS.ruler, type: 'ratchet', dur: 1.4 }, { t: HITS.fourH, type: 'chime', note: 81 });
+[0, .2, .4, .6, .8].forEach(k => EV.push({ t: HITS.zones39 + k, type: 'tick' }));
+EV.push({ t: HITS.beijing - .45, type: 'suck' }, { t: HITS.beijing, type: 'shimmer' }, { t: HITS.rewind, type: 'rewind' });
+CITIES.forEach((c, i) => { let lo = 17, hi = 29; for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (CLOCK(m) >= c.sr) hi = m; else lo = m; } if (hi < 28.9) EV.push({ t: hi, type: 'dawn', i }); });
+EV.push({ t: HITS.ten, type: 'thump' }, { t: HITS.clocks, type: 'glock', note: 84 }, { t: HITS.clocks + .5, type: 'glock', note: 79 }, { t: HITS.end1, type: 'resolve' });
+
+// ---------- the frame ----------
+function frame(t) {
+  TX = [];
+  const cam = CAM(t, { dec: sunp.dec_rad, eqt: sunp.eqt_min }); setCam(cam);
+  const clock = CLOCK(t), utc = clock - 8; SUN.utc.value = utc;
+  // terrain layers
+  const zA = t < 4 ? seg(t, .15, 1.0) * (1 - seg(t, HITS.one, HITS.one + .45)) : env(t, HITS.zones39 - .2, HITS.beijing + .2, .4, .5) * .8;
+  TER.zones.value = zA;
+  let fill = 0, fR = 60;
+  if (t < 10.1) { fill = seg(t, HITS.one - .02, HITS.one + .05) * (1 - .45 * seg(t, 4.2, 5.0)); fR = lerp(0, 55, Math.pow(seg(t, HITS.one, HITS.one + .9), .8)); }
+  else if (t < 17.2) { fill = Math.max(.55 * (1 - seg(t, 10.0, 10.6)), seg(t, HITS.beijing, HITS.beijing + .1)); fR = t < HITS.beijing ? 60 : lerp(0, 55, Math.pow(seg(t, HITS.beijing, HITS.beijing + 1.8), .8)); }
+  else fill = t < 34.4 ? .12 : lerp(.12, .6, seg(t, HITS.end1, HITS.end1 + 1));
+  TER.fill.value = fill; TER.fillR.value = fR;
+  // outline: cool before the merge, amber after
+  const amberK = t < HITS.one ? 0 : seg(t, HITS.one, HITS.one + .25);
+  const oI = (t < HITS.one ? .55 : 1) * (t > 17 && t < 34.4 ? .55 : 1);
+  for (const o of outline) { o.core.u.col.value.set(ICE).lerp(new THREE.Color(AMB2), amberK); o.glow.u.col.value.set(ICE).lerp(new THREE.Color(AMB), amberK); o.core.u.inten.value = oI; o.glow.u.inten.value = oI * .9; }
+  for (const d of dashes) { d.u.col.value.set(ICE).lerp(new THREE.Color(AMB2), amberK); d.u.inten.value = oI; d.u.dash.value = 0; }
+  // zone lines: draw on in the hook; dashed in the history shot
+  zoneLines.forEach((z, i) => {
+    if (t < 4) { z.u.rev.value = z.L * eo(seg(t, .15 + i * .2, .55 + i * .2)) + .01; z.u.inten.value = 1 - seg(t, HITS.one, HITS.one + .4); z.u.dash.value = 0; }
+    else { z.u.rev.value = z.L * eo(seg(t, HITS.zones39 + i * .2, HITS.zones39 + .5 + i * .2)) + .01; z.u.inten.value = env(t, HITS.zones39, HITS.beijing + .3, .1, .5); z.u.dash.value = .55; }
+  });
+  // ruler
+  const rA = env(t, HITS.ruler, 10.0, .2, .5); ruler.u.rev.value = ruler.L * eo(seg(t, HITS.ruler, HITS.ruler + 1.3)) + .01; ruler.u.inten.value = rA;
+  ruler.u.head.value = ruler.u.rev.value; ruler.u.headAmt.value = 2 * (1 - seg(t, HITS.ruler + 1.2, HITS.ruler + 1.6));
+  leaders.forEach(l => { l.u.inten.value = rA * seg(t, HITS.ruler + 1.2, HITS.ruler + 1.6); });
+  dawnLine(utc, env(t, 17.8, 28.6, .6, .8));
+  composer.render();
+
+  // ---- overlay ----
+  g.clearRect(0, 0, Wd, Ht);
+  const top = 250;
+  // hook readout: 5 TIME ZONES -> 1 CLOCK
+  if (t < 4.6) {
+    const k = seg(t, HITS.one, HITS.one + .2), a = 1 - seg(t, 4.1, 4.6);
+    txt('hook5', '5', Wd / 2, top + 40, { size: 190, w: 600, col: C.ice, a: a * (1 - k) * seg(t, .1, .35) });
+    txt('hook5b', 'TIME ZONES', Wd / 2, top + 110, { size: 54, w: 500, track: 10, col: C.ice, a: a * (1 - k) * seg(t, .1, .35) });
+    const s = 1 + .25 * (1 - eo(seg(t, HITS.one, HITS.one + .35)));
+    txt('hook1', '1', Wd / 2, top + 40, { size: 190 * s, w: 600, col: C.amber2, a: a * k, pass: true });
+    txt('hook1b', 'TIME ZONE', Wd / 2, top + 110, { size: 54, w: 500, track: 10, col: C.amber2, a: a * k, pass: true });
+    // natural zone labels at the top of each band
+    [75, 90, 105, 120, 131.5].forEach((lon, i) => { const [x, y, v] = proj(lon, i === 0 ? 40.5 : i === 4 ? 47 : 44); if (v) txt('z' + i, `UTC+${5 + i}`, x, y - 26, { size: 32, w: 600, col: C.ice, a: zA * seg(t, .4 + i * .2, .7 + i * .2), pass: true }); });
+  }
+  // width
+  if (t > HITS.ruler && t < 10.2) {
+    const [x0, y0] = proj(WEST[0], RLAT, .6), [x1, y1] = proj(EAST[0], RLAT, .6), a = rA * seg(t, HITS.ruler + 1.1, HITS.ruler + 1.4);
+    const k = seg(t, HITS.fourH - .1, HITS.fourH + .2);
+    txt('w1', '>5,000', (x0 + x1) / 2, Math.min(y0, y1) - 70, { size: 96, w: 600, col: C.rule, a: a * (1 - k) });
+    txt('w1u', 'KM EAST TO WEST', (x0 + x1) / 2, Math.min(y0, y1) - 26, { size: 32, w: 500, track: 6, col: C.rule, a: a * (1 - k) });
+    txt('w2', '~4 HOURS', (x0 + x1) / 2, Math.min(y0, y1) - 70, { size: 96, w: 600, col: C.amber2, a: a * k });
+    txt('w2u', 'FOR THE SUN TO CROSS IT', (x0 + x1) / 2, Math.min(y0, y1) - 26, { size: 32, w: 500, track: 6, col: C.amber2, a: a * k });
+  }
+  // history: the five 1939 zones and Beijing
+  if (t > 10 && t < 17.3) {
+    const a = env(t, HITS.zones39, HITS.beijing + .2, .3, .5);
+    txt('h0', '1939 – 1949', Wd / 2, top + 20, { size: 84, w: 600, col: C.ice, a });
+    txt('h0b', 'FIVE OFFICIAL TIME ZONES', Wd / 2, top + 72, { size: 34, w: 500, track: 8, col: C.ice, a });
+    const N = [['KUNLUN', '+5:30', 76, 38.5], ['XINJIANG–TIBET', '+6', 88, 41], ['GANSU–SICHUAN', '+7', 102, 38.5], ['CENTRAL', '+8', 114, 33], ['CHANGBAI', '+8:30', 128, 45.5]];
+    N.forEach(([n, o, lo, la], i) => { const [x, y, v] = proj(lo, la); const ai = a * seg(t, HITS.zones39 + .3 + i * .2, HITS.zones39 + .6 + i * .2);
+      if (v) { txt('hn' + i, o, x, y - 8, { size: 44, w: 600, col: C.ice, a: ai }); txt('hl' + i, n, x, y + 26, { size: 22, w: 500, track: 3, col: C.ice, a: ai }); } });
+    const [bx, by, bv] = proj(116.4, 39.9);
+    const pa = seg(t, HITS.beijing - 1.2, HITS.beijing - .9) * (1 - seg(t, 16.9, 17.3));
+    if (bv && pa > 0) { dot(bx, by, 9, C.amber2, pa, seg(t, HITS.beijing, HITS.beijing + 1.2)); leader(bx, by - 14, bx, by - 90, C.rule, pa); txt('bj', 'BEIJING', bx, by - 102, { size: 40, w: 600, track: 6, a: pa }); }
+    const ka = seg(t, HITS.beijing + .3, HITS.beijing + .6) * (1 - seg(t, 16.9, 17.3));
+    txt('bt', 'ONE CLOCK: BEIJING TIME', Wd / 2, top + 20, { size: 64, w: 600, col: C.amber2, a: ka });
+  }
+  // the sweep: clock + cities
+  if (t > 17.2) {
+    const a = seg(t, 17.3, 17.8) * (1 - seg(t, 29.6, 30.1));
+    txt('clkL', 'BEIJING TIME', Wd - 64, 150, { size: 30, w: 500, track: 8, col: C.amber2, align: 'right', a, pass: true });
+    txt('clk', hhmm(clock), Wd - 64, 250, { size: 108, w: 600, col: C.rule, align: 'right', a, pass: true });
+    CITIES.forEach((c, i) => {
+      const lit = clock - c.sr; if (lit < 0) return;
+      const tl0 = t - lit * 60 * 0;             // label lives ~3 s of film after its dawn
+      const age = (() => { let lo = 17, hi = t; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (CLOCK(m) >= c.sr) hi = m; else lo = m; } return t - hi; })();
+      const ca = seg(age, 0, .25) * (1 - seg(age, i === 5 ? 9 : 2.6, i === 5 ? 9.5 : 3.2)) * (t < 34.5 ? 1 : 0);
+      const [x, y, v] = proj(c.lon, c.lat); if (!v || ca <= 0) return;
+      dot(x, y, 8, C.amber2, ca, seg(age, 0, 1));
+      leader(x, y - 12, x, y - 70, C.rule, ca);
+      txt('c' + i, c.name, x, y - 112, { size: 36, w: 600, track: 5, a: ca, pass: i !== 5 });
+      txt('cs' + i, 'SUNRISE ' + hhmm(c.sr), x, y - 80, { size: 26, w: 500, track: 3, col: C.amber2, a: ca, pass: i !== 5 });
+      if (i < 5) EV.length && 0;
+    });
+  }
+  // Kashgar: two clocks
+  if (t > HITS.clocks - .2 && t < 34.6) {
+    const a = seg(t, HITS.clocks, HITS.clocks + .3) * (1 - seg(t, 34.2, 34.6)), b = seg(t, HITS.clocks + .5, HITS.clocks + .8) * (1 - seg(t, 34.2, 34.6));
+    txt('k1l', 'BEIJING TIME (OFFICIAL)', 64, 150, { size: 30, w: 500, track: 6, col: C.amber2, align: 'left', a });
+    txt('k1', hhmm(clock), 64, 260, { size: 112, w: 600, col: C.amber2, align: 'left', a, pass: true });
+    txt('k2l', 'XINJIANG TIME (UNOFFICIAL)', 64, 340, { size: 30, w: 500, track: 6, col: C.teal2, align: 'left', a: b });
+    txt('k2', hhmm(clock - 2), 64, 450, { size: 112, w: 600, col: C.teal2, align: 'left', a: b, pass: true });
+  }
+  // ending
+  if (t > HITS.end1) {
+    const a = seg(t, HITS.end1, HITS.end1 + .4);
+    txt('e1', '1 COUNTRY', Wd / 2, top - 10, { size: 92, w: 600, col: C.rule, a });
+    txt('e2', '1 CLOCK', Wd / 2, top + 92, { size: 92, w: 600, col: C.amber2, a: seg(t, HITS.end1 + .9, HITS.end1 + 1.3) });
+  }
+  subtitles(t);
+  txt('src', 'Terrain: AWS Terrain Tiles · Imagery: NASA Blue Marble · Borders: Natural Earth 1:10m (China view) · Relief ×30 · Sun: 21 Dec', Wd / 2, Ht - 36, { size: 20, w: 500, col: 'rgba(230,235,240,.75)', a: 1, pass: true, blur: 4 });
+}
+await Promise.all([400, 500, 600, 700].map(w => document.fonts.load(`${w} 40px Barlow`)));
+await document.fonts.ready;
+window.DUR = DUR;
+window.EV = EV;
+window.render = t => frame(t + T0);
+window.TEXTS = t => { window.render(t); return TX.map(o => ({ ...o })); };
+window.render(0);
+window.READY = true;
+</script></body></html>

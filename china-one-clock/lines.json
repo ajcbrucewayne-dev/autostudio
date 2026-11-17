@@ -1,0 +1,13 @@
+[
+ {"id": "l01", "text": "China should have five time zones.", "voice": "bm_lewis", "speed": 1.0},
+ {"id": "l02", "text": "It uses one.", "voice": "bm_lewis", "speed": 0.95},
+ {"id": "l03", "text": "It's more than five thousand kilometres wide, and the sun takes four hours to cross it.", "voice": "bm_lewis", "speed": 1.05},
+ {"id": "l04", "text": "Until nineteen forty-nine, China really had five.", "voice": "bm_lewis", "speed": 1.0},
+ {"id": "l05", "text": "Then the whole country was put on Beijing time.", "voice": "bm_lewis", "speed": 1.0},
+ {"id": "l06", "text": "On a winter morning, the sun rises over Shanghai before seven.", "voice": "bm_lewis", "speed": 1.05},
+ {"id": "l07", "text": "Then it keeps going west, for hours,", "voice": "bm_lewis", "speed": 1.0},
+ {"id": "l08", "text": "until it finally reaches Kashgar, after ten a.m.", "voice": "bm_lewis", "speed": 1.0},
+ {"id": "l09", "text": "So many people there quietly keep their own clock, two hours behind.", "voice": "bm_lewis", "speed": 1.05},
+ {"id": "l10", "text": "One country. One clock.", "voice": "bm_lewis", "speed": 0.95},
+ {"id": "l11", "text": "Would you wait until ten for the sunrise?", "voice": "bm_lewis", "speed": 1.0}
+]
