@@ -19,7 +19,7 @@ import { clamp, lerp, seg, ss, eo, eio, ei, mulberry } from '/core/lib.js';
 import { DUR, CAM, CLOCK, LINES, HITS, CITIES, sunriseLon } from './timeline.js';
 
 const Wd = innerWidth, Ht = innerHeight, Q = new URLSearchParams(location.search);
-const T0 = +(Q.get('t0') || 0);
+const T0 = +(Q.get('t0') || 0), T1 = Q.has('t1') ? +Q.get('t1') : null;
 const D2R = Math.PI / 180, U = 100;                       // world unit = 100 km
 const [meta, china, sunp, hraw, vdur] = await Promise.all(['assets/meta.json', 'assets/china.json', 'data/sun.json'].map(u => fetch(u).then(r => r.json()))
   .concat([fetch('assets/height_mesh.bin').then(r => r.arrayBuffer()), fetch('out/voice/dur.json').then(r => r.json())]));
@@ -280,9 +280,9 @@ function frame(t) {
   const top = 250;
   // hook readout: 5 TIME ZONES -> 1 CLOCK
   if (t < 4.6) {
-    const k = seg(t, HITS.one, HITS.one + .2), a = 1 - seg(t, 4.1, 4.6);
-    txt('hook5', '5', Wd / 2, top + 40, { size: 190, w: 600, col: C.ice, a: a * (1 - k) * seg(t, .1, .35) });
-    txt('hook5b', 'TIME ZONES', Wd / 2, top + 110, { size: 54, w: 500, track: 10, col: C.ice, a: a * (1 - k) * seg(t, .1, .35) });
+    const k = seg(t, HITS.one + .06, HITS.one + .16), k5 = seg(t, HITS.one - .06, HITS.one + .04), a = 1 - seg(t, 4.1, 4.6);
+    txt('hook5', '5', Wd / 2, top + 40, { size: 190, w: 600, col: C.ice, a: a * (1 - k5) * seg(t, .1, .35) });
+    txt('hook5b', 'TIME ZONES', Wd / 2, top + 110, { size: 54, w: 500, track: 10, col: C.ice, a: a * (1 - k5) * seg(t, .1, .35) });
     const s = 1 + .25 * (1 - eo(seg(t, HITS.one, HITS.one + .35)));
     txt('hook1', '1', Wd / 2, top + 40, { size: 190 * s, w: 600, col: C.amber2, a: a * k, pass: true });
     txt('hook1b', 'TIME ZONE', Wd / 2, top + 110, { size: 54, w: 500, track: 10, col: C.amber2, a: a * k, pass: true });
@@ -318,9 +318,9 @@ function frame(t) {
     txt('clkL', 'BEIJING TIME', Wd - 64, 150, { size: 30, w: 500, track: 8, col: C.amber2, align: 'right', a, pass: true });
     txt('clk', hhmm(clock), Wd - 64, 250, { size: 108, w: 600, col: C.rule, align: 'right', a, pass: true });
     CITIES.forEach((c, i) => {
-      const lit = clock - c.sr; if (lit < 0) return;
+      const lit = clock - c.sr; if (lit < 0 || t < 17.75) return;
       const tl0 = t - lit * 60 * 0;             // label lives ~3 s of film after its dawn
-      const age = (() => { let lo = 17, hi = t; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (CLOCK(m) >= c.sr) hi = m; else lo = m; } return t - hi; })();
+      const age = (() => { let lo = 17.75, hi = t; for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (CLOCK(m) >= c.sr) hi = m; else lo = m; } return t - hi; })();
       const ca = seg(age, 0, .25) * (1 - seg(age, i === 5 ? 9 : 2.6, i === 5 ? 9.5 : 3.2)) * (t < 34.5 ? 1 : 0);
       const [x, y, v] = proj(c.lon, c.lat); if (!v || ca <= 0) return;
       dot(x, y, 8, C.amber2, ca, seg(age, 0, 1));
@@ -349,7 +349,7 @@ function frame(t) {
 }
 await Promise.all([400, 500, 600, 700].map(w => document.fonts.load(`${w} 40px Barlow`)));
 await document.fonts.ready;
-window.DUR = DUR;
+window.DUR = T1 != null ? T1 - T0 : DUR;
 window.EV = EV;
 window.render = t => frame(t + T0);
 window.TEXTS = t => { window.render(t); return TX.map(o => ({ ...o })); };
