@@ -1,0 +1,21 @@
+Kingdom in the Sky (Off The Map) — third-party material and licences
+
+Map data
+- Terrain: AWS Terrain Tiles (Mapzen terrarium; SRTM, GMTED2010, ETOPO1 and others), free with attribution. Downloaded 2026-11-17 (data/tiles8/fetch.log, data/tiles10/fetch.log).
+- Imagery: "Blue Marble: Land Surface, Shallow Water, and Shaded Topography", NASA Goddard Space Flight Center / NASA Visible Earth. Public domain.
+  Via Wikimedia Commons, File:Whole_world_-_land_and_oceans_12000.jpg (cropped to 14–36°E, 20–36°S).
+- Borders: Natural Earth 1:10m Cultural Vectors, admin 0 countries (ne_10m_admin_0_countries_chn layer; Lesotho and South Africa outlines). Public domain.
+- Relief exaggerated ×6. Flood shares measured from the terrain tiles (tools/prep.py, data/measure.json); see FACTS.md.
+
+Sound
+- Narration: Kokoro TTS (kokoro-onnx), voice bm_lewis. Apache 2.0.
+- Samples (CC0): VS Chamber Orchestra: Community Edition (Versilian Studios); Versilian Community Sample Library (Versilian Studios).
+  Instruments: cellos, cellos (spiccato), contrabass, contrabass (pizzicato), horn, horn (staccato), timpani, harp, glockenspiel, vibraphone,
+  bowed vibraphone, hand chimes, frame drum.
+- Foley and ambience: synthesised (numpy).
+
+Type
+- Barlow Condensed by Jeremy Tribby, SIL Open Font License 1.1 (fonts/OFL.txt).
+
+Software
+- three.js r170 (MIT); Lemo-Opuscar rendering, audio and post tools (core/three/post.js copied as post.js).

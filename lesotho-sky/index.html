@@ -1,0 +1,269 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>Kingdom in the Sky</title>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<style>
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Regular.ttf);font-weight:400}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Medium.ttf);font-weight:500}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-SemiBold.ttf);font-weight:600}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+html,body{margin:0;background:#05080c;overflow:hidden}
+canvas{position:absolute;left:0;top:0}
+</style></head>
+<body>
+<script type="module">
+// "Kingdom in the Sky": the sea rises over southern Africa; Lesotho never gets wet. Timeline in TREATMENT.md; numbers in FACTS.md.
+import * as THREE from 'three';
+import { makePost } from './post.js';
+import { clamp, lerp, seg, ss, eo, eio } from '/core/lib.js';
+import { DUR, LINES, HITS, LEVEL, SHARE, CAM } from './timeline.js';
+
+const Wd = innerWidth, Ht = innerHeight, Q = new URLSearchParams(location.search);
+const T0 = +(Q.get('t0') || 0), T1 = Q.has('t1') ? +Q.get('t1') : null;
+const D2R = Math.PI / 180, U = 10, EX = 6;                  // world unit = 10 km; relief ×6
+const J = u => fetch(u).then(r => r.json()), B = u => fetch(u).then(r => r.arrayBuffer());
+const [meta, lso, vdur, rRaw, dRaw] = await Promise.all([J('assets/meta.json'), J('assets/lesotho.json'), J('out/voice/dur.json'), B('assets/mesh_r.bin'), B('assets/mesh_d.bin')]);
+const HRb = new Float32Array(rRaw), HDb = new Float32Array(dRaw);
+const LON0 = 27.6, LAT0 = -29.4, KX = 111.32 * Math.cos(meta.lat0 * D2R) / U, KZ = 111.32 / U;
+const xz = (lon, lat) => [(lon - LON0) * KX, -(lat - LAT0) * KZ];
+const [RW, RH] = meta.mesh_r, [DW, DH] = meta.mesh_d, [r0, r1, r2, r3] = meta.R, [d0, d1, d2, d3] = meta.Dt;
+function bil(buf, w, h, gx, gz) { const x0 = clamp(Math.floor(gx), 0, w - 2), z0 = clamp(Math.floor(gz), 0, h - 2), fx = clamp(gx - x0), fz = clamp(gz - z0);
+  return (buf[z0 * w + x0] * (1 - fx) + buf[z0 * w + x0 + 1] * fx) * (1 - fz) + (buf[(z0 + 1) * w + x0] * (1 - fx) + buf[(z0 + 1) * w + x0 + 1] * fx) * fz; }
+function hAt(lon, lat) {
+  if (lon > d0 && lon < d1 && lat > d2 && lat < d3) return bil(HDb, DW, DH, (lon - d0) / (d1 - d0) * (DW - 1), (d3 - lat) / (d3 - d2) * (DH - 1));
+  return bil(HRb, RW, RH, (lon - r0) / (r1 - r0) * (RW - 1), (r3 - lat) / (r3 - r2) * (RH - 1));
+}
+const yOf = h => Math.max(h, 0) / 1000 * EX / U;
+const geo = (lon, lat, lift = 0) => { const [X, Z] = xz(lon, lat); return new THREE.Vector3(X, yOf(hAt(lon, lat)) + lift, Z); };
+
+// ---------- renderer ----------
+const SS = +(Q.get('ss') || 1.5);
+const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(Wd, Ht);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.55;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+{ const c = document.createElement('canvas'); c.width = 4; c.height = 512; const q = c.getContext('2d'); const gr = q.createLinearGradient(0, 0, 0, 512);
+  gr.addColorStop(0, '#04070c'); gr.addColorStop(.55, '#0b1622'); gr.addColorStop(.8, '#24384c'); gr.addColorStop(1, '#3a4c5c'); q.fillStyle = gr; q.fillRect(0, 0, 4, 512);
+  const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; scene.background = tx; }
+const camera = new THREE.PerspectiveCamera(40, Wd / Ht, .05, 2000);
+const tl = new THREE.TextureLoader(), load = u => new Promise((r, e) => tl.load(u, r, undefined, e));
+const [albR, albD, nrmR, nrmD, hR, hD, mR, mD] = await Promise.all(['assets/albedo_r.jpg', 'assets/albedo_d.jpg', 'assets/normal_r.png', 'assets/normal_d.png',
+  'assets/height_r.png', 'assets/height_d.png', 'assets/mask_r.png', 'assets/mask_d.png'].map(load));
+for (const t of [albR, albD]) t.colorSpace = THREE.SRGBColorSpace;
+for (const t of [albR, albD, nrmR, nrmD, mR, mD]) t.anisotropy = 8;
+for (const t of [hR, hD]) { t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; }
+
+// ---------- terrain: one fixed low sun from the north-west ----------
+const SUNV = new THREE.Vector3(Math.sin(315 * D2R) * Math.cos(24 * D2R), Math.sin(24 * D2R), -Math.cos(315 * D2R) * Math.cos(24 * D2R)).normalize();
+const G = { lvl: { value: 0 }, glow: { value: 0 }, camP: { value: new THREE.Vector3() }, fogD: { value: 300 }, resY: { value: 1920 }, sunV: { value: SUNV } };
+const SKY = `vec3 lin(vec3 c){ return pow(c, vec3(2.2)); }
+  vec3 skyAt(float v){ vec3 a = vec3(.016,.027,.047), b = vec3(.043,.086,.133), c = vec3(.141,.220,.298), d = vec3(.227,.298,.361);
+    vec3 s = v < .55 ? mix(a, b, v / .55) : v < .8 ? mix(b, c, (v - .55) / .25) : mix(c, d, (v - .8) / .2); return lin(s); }`;
+function terMat(alb, nrm, msk, box, inner) {
+  return new THREE.ShaderMaterial({
+    uniforms: { tAlb: { value: alb }, tNrm: { value: nrm }, tMask: { value: msk }, box: { value: new THREE.Vector4(...box) }, inner: { value: new THREE.Vector4(...(inner || [0, 0, 0, 0])) },
+      tAlbR: { value: albR }, tNrmR: { value: nrmR }, rbox: { value: new THREE.Vector4(r0, r2, r1, r3) }, ...G },
+    vertexShader: `attribute vec2 aLL; varying vec2 vLL; varying vec3 vW; void main(){ vLL = aLL; vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `varying vec2 vLL; varying vec3 vW; uniform sampler2D tAlb, tNrm, tMask, tAlbR, tNrmR; uniform vec4 box, inner, rbox; uniform float glow, fogD, resY; uniform vec3 camP, sunV; ${SKY}
+      void main(){
+        if (inner.z > inner.x && vLL.x > inner.x && vLL.x < inner.z && vLL.y > inner.y && vLL.y < inner.w) discard;      // the detail mesh covers this
+        vec2 uv = vec2((vLL.x - box.x) / (box.z - box.x), (vLL.y - box.y) / (box.w - box.y));
+        vec3 alb = lin(texture2D(tAlb, vec2(uv.x, 1. - uv.y)).rgb);
+        vec3 n = normalize(texture2D(tNrm, vec2(uv.x, 1. - uv.y)).rgb * 2. - 1.);
+        vec2 ur = vec2((vLL.x - rbox.x) / (rbox.z - rbox.x), 1. - (vLL.y - rbox.y) / (rbox.w - rbox.y));
+        float eb = min(min(vLL.x - box.x, box.z - vLL.x), min(vLL.y - box.y, box.w - vLL.y)); float fe = smoothstep(.02, .3, eb);
+        vec3 nR = normalize(texture2D(tNrmR, ur).rgb * 2. - 1.); vec3 aR = lin(texture2D(tAlbR, ur).rgb);
+        if (box.z - box.x < 10.) { n = normalize(mix(nR, n, fe)); alb = mix(aR, alb, fe); }
+        float lam = max(dot(n, sunV), 0.);
+        vec3 col = alb * (vec3(1., .86, .66) * lam * 2.7 + vec3(.32, .40, .50) * (.55 + .45 * n.y) * .75);
+        float m = texture2D(tMask, vec2(uv.x, 1. - uv.y)).r;
+        col = mix(col, col * 1.05 + vec3(.05, .025, .0) * lam, glow * m * .6);     // Lesotho warmed by the kingdom's glow
+        float dist = length(vW - camP); col = mix(col, lin(vec3(.40, .46, .52)) * .35, (1. - exp(-pow(dist / fogD, 2.))) * .55);
+        float edge = smoothstep(-21.5, -20.2, vLL.y) + smoothstep(15.6, 14.2, vLL.x) + smoothstep(34.4, 35.8, vLL.x) + smoothstep(-34.3, -35.8, vLL.y);
+        col = mix(col, skyAt(1. - gl_FragCoord.y / resY), clamp(edge, 0., 1.));
+        gl_FragColor = vec4(col, 1.); }` });
+}
+function terrain(buf, w, h, box, mat, lower = 0) {
+  const pos = new Float32Array(w * h * 3), ll = new Float32Array(w * h * 2), idx = [];
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const lon = box[0] + i / (w - 1) * (box[1] - box[0]), lat = box[3] - j / (h - 1) * (box[3] - box[2]), k = j * w + i, [X, Z] = xz(lon, lat);
+    pos.set([X, yOf(buf[k]) - lower, Z], k * 3); ll.set([lon, lat], k * 2); }
+  for (let j = 0; j < h - 1; j++) for (let i = 0; i < w - 1; i++) { const a = j * w + i; idx.push(a, a + w, a + 1, a + 1, a + w, a + w + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aLL', new THREE.BufferAttribute(ll, 2)); g.setIndex(idx);
+  const m = new THREE.Mesh(g, mat); m.frustumCulled = false; scene.add(m); return m;
+}
+terrain(HRb, RW, RH, meta.R, terMat(albR, nrmR, mR, [r0, r2, r1, r3], [d0 + .02, d2 + .02, d1 - .02, d3 - .02]), .004);
+terrain(HDb, DW, DH, meta.Dt, terMat(albD, nrmD, mD, [d0, d2, d1, d3]));
+
+// ---------- the sea, raised: a water plane with a glowing shoreline (depth from the height textures) ----------
+const water = (() => {
+  const g = new THREE.PlaneGeometry((r1 - r0) * KX, (r3 - r2) * KZ, 1, 1); g.rotateX(-Math.PI / 2);
+  const [cx, cz] = xz((r0 + r1) / 2, (r2 + r3) / 2);
+  const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: true,
+    uniforms: { tHR: { value: hR }, tHD: { value: hD }, ...G },
+    vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `varying vec3 vW; uniform sampler2D tHR, tHD; uniform float lvl, fogD, resY; uniform vec3 camP; ${SKY}
+      float H(sampler2D t, vec2 uv){ vec3 c = texture2D(t, uv).rgb; return (c.r * 255. * 256. + c.g * 255.) - 12000.; }
+      void main(){
+        float lon = ${LON0.toFixed(4)} + vW.x / ${KX.toFixed(6)}, lat = ${LAT0.toFixed(4)} - vW.z / ${KZ.toFixed(6)};
+        float h;
+        if (lon > ${d0.toFixed(3)} && lon < ${d1.toFixed(3)} && lat > ${d2.toFixed(3)} && lat < ${d3.toFixed(3)}) h = H(tHD, vec2((lon - ${d0.toFixed(3)}) / ${(d1 - d0).toFixed(3)}, (${d3.toFixed(3)} - lat) / ${(d3 - d2).toFixed(3)}));
+        else h = H(tHR, vec2((lon - ${r0.toFixed(3)}) / ${(r1 - r0).toFixed(3)}, (${r3.toFixed(3)} - lat) / ${(r3 - r2).toFixed(3)}));
+        float dep = lvl - max(h, 0.); if (dep < 0. || lvl < 1.) discard;
+        float k = clamp(dep / 900., 0., 1.);
+        vec3 col = mix(lin(vec3(.13, .42, .46)), lin(vec3(.03, .10, .17)), pow(k, .6));
+        float shore = exp(-pow(dep / 9., 2.));
+        col += vec3(1.3, 1.0, .7) * shore * .9;                                       // the glowing waterline
+        float dist = length(vW - camP); col = mix(col, lin(vec3(.40, .46, .52)) * .35, (1. - exp(-pow(dist / fogD, 2.))) * .5);
+        float edge = smoothstep(-21.5, -20.2, lat) + smoothstep(15.6, 14.2, lon) + smoothstep(34.4, 35.8, lon) + smoothstep(-34.3, -35.8, lat);
+        col = mix(col, skyAt(1. - gl_FragCoord.y / resY), clamp(edge, 0., 1.));
+        gl_FragColor = vec4(col, mix(.80, .95, k) * smoothstep(0., 8., dep) + shore * .2); }` });
+  const w = new THREE.Mesh(g, m); w.position.set(cx, 0, cz); w.renderOrder = 1; w.frustumCulled = false; scene.add(w); return w;
+})();
+
+// ---------- glowing ribbons ----------
+const PIXK = 2 * Math.tan(camera.fov / 2 * D2R) / Ht;
+const RIB_V = `attribute float aSide; attribute vec3 aNorm; attribute float aAlong; uniform float wW, pxW, pixK; varying float vSide, vAlong;
+  void main(){ vec4 wp = modelMatrix * vec4(position, 1.); float pw = length(cameraPosition - wp.xyz) * pixK;
+    float hw = max(wW * .5, pxW * .5 * pw); wp.xyz += aNorm * aSide * hw; vSide = aSide; vAlong = aAlong; gl_Position = projectionMatrix * viewMatrix * wp; }`;
+const RIB_F = `varying float vSide, vAlong; uniform vec3 col; uniform float k, inten, rev, soft, head, headAmt, dash, duty, base;
+  void main(){ float g = exp(-vSide * vSide * k); float vis = 1. - smoothstep(rev - soft, rev, vAlong); if (vis <= 0.) discard;
+    float a = base; if (dash > 0.) a *= step(fract(vAlong / dash), duty); a += headAmt * exp(-pow((vAlong - head) / soft, 2.));
+    gl_FragColor = vec4(col * g * a * inten * vis, 1.); }`;
+function ribbon(pts, o = {}) {
+  const n = pts.length, pos = new Float32Array(n * 6), side = new Float32Array(n * 2), nrm = new Float32Array(n * 6), al = new Float32Array(n * 2), idx = []; let L = 0;
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], t = new THREE.Vector3().subVectors(b, a);
+    const nv = o.vertical ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-t.z, 0, t.x).normalize(); if (i) L += pts[i].distanceTo(pts[i - 1]);
+    for (let s = 0; s < 2; s++) { const q = 2 * i + s; pos.set([pts[i].x, pts[i].y, pts[i].z], q * 3); side[q] = s ? -1 : 1; nrm.set([nv.x, nv.y, nv.z], q * 3); al[q] = L; }
+    if (i) { const q = 2 * i; idx.push(q - 2, q - 1, q, q - 1, q + 1, q); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
+  g.setAttribute('aNorm', new THREE.BufferAttribute(nrm, 3)); g.setAttribute('aAlong', new THREE.BufferAttribute(al, 1)); g.setIndex(idx);
+  const u = { col: { value: new THREE.Color(o.col ?? 0xffa63d) }, k: { value: o.k ?? 3 }, inten: { value: 0 }, wW: { value: 0 }, pxW: { value: o.pxW ?? 2 },
+    pixK: { value: PIXK }, rev: { value: 1e9 }, soft: { value: o.soft ?? .3 }, head: { value: -1e6 }, headAmt: { value: 0 }, dash: { value: o.dash ?? 0 }, duty: { value: .55 }, base: { value: o.base ?? 1 } };
+  const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: u, vertexShader: RIB_V, fragmentShader: RIB_F, side: THREE.DoubleSide, transparent: true,
+    depthWrite: false, depthTest: o.depthTest ?? true, blending: THREE.AdditiveBlending, toneMapped: false }));
+  m.renderOrder = o.order ?? 3; m.frustumCulled = false; scene.add(m); m.u = u; m.L = L; return m;
+}
+const densify = (ll, step) => { const o = []; for (let i = 0; i < ll.length - 1; i++) { const [a, b] = ll[i], [c, d] = ll[i + 1]; const n = Math.max(1, Math.ceil(Math.hypot(c - a, d - b) / step)); for (let k = 0; k < n; k++) o.push([a + (c - a) * k / n, b + (d - b) * k / n]); } o.push(ll[ll.length - 1]); return o; };
+const border = lso.LSO.filter(r => r.length > 20).map(r => { const p = densify(r.concat([r[0]]), .01).map(([lo, la]) => geo(lo, la, .06));
+  return { glow: ribbon(p, { pxW: 12, k: 3, base: .3 }), core: ribbon(p, { pxW: 2.4, k: 1.3, base: 1.4, col: 0xffc36b }) }; });
+const [LO, LA, LH] = meta.low, [HO, HA, HH] = meta.high;
+const peakRuler = ribbon([new THREE.Vector3(...xz(HO, HA).slice(0, 1), 0), new THREE.Vector3()].map((_, i) => { const [X, Z] = xz(HO, HA); return new THREE.Vector3(X, i ? yOf(HH) + .02 : yOf(1400), Z); }),
+  { pxW: 3, k: 1.2, base: 1.4, col: 0xf6eee0, vertical: true, depthTest: false, order: 5 });
+
+// ---------- post ----------
+const { composer, dof, bloom } = makePost(renderer, scene, camera, Wd, Ht, { ssaa: SS, ao: false });
+bloom.strength = .5; bloom.radius = .45; bloom.threshold = 1.05;
+
+// ---------- camera ----------
+function setCam(c) {
+  const [X, Z] = xz(c.lon, c.lat), Y = yOf(hAt(c.lon, c.lat)) * .5, th = c.tilt * D2R, hd = c.head * D2R;
+  const off = new THREE.Vector3(-Math.sin(hd) * Math.sin(th), Math.cos(th), Math.cos(hd) * Math.sin(th)).multiplyScalar(c.d);
+  camera.position.set(X + off.x, Y + off.y, Z + off.z); camera.up.set(0, 1, 0); camera.lookAt(X, Y, Z); camera.updateMatrixWorld();
+  G.camP.value.copy(camera.position); G.fogD.value = Math.max(80, c.d * 2.4); G.resY.value = Ht * SS; dof.maxCoc = 0;
+}
+
+// ---------- 2D overlay ----------
+const ov = document.createElement('canvas'); ov.width = Wd; ov.height = Ht; ov.style.width = Wd + 'px'; ov.style.height = Ht + 'px'; document.body.appendChild(ov);
+const g = ov.getContext('2d');
+const proj = (lon, lat, lift = .1, y = null) => { const p = geo(lon, lat, lift); if (y != null) p.y = y; const v = p.project(camera); return [(v.x + 1) / 2 * Wd, (1 - v.y) / 2 * Ht, v.z < 1 && Math.abs(v.x) < 1.15 && Math.abs(v.y) < 1.15]; };
+let TX = [];
+const C = { amber: '#ffa63d', amber2: '#ffc36b', ice: '#d9e6ee', rule: '#f6eee0', teal: '#2fa3b0', teal2: '#8fd6de', sea: '#bcdbe6' };
+function txt(id, s, x, y, o = {}) {
+  const a = o.a ?? 1; if (a <= .01 || !s) return;
+  g.save(); g.globalAlpha = a; g.font = `${o.w ?? 600} ${o.size ?? 34}px Barlow`; g.letterSpacing = (o.track ?? 0) + 'px'; g.textAlign = o.align ?? 'center';
+  if (o.shadow !== false) { g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = o.blur ?? 14; }
+  g.fillStyle = o.col ?? C.rule; g.fillText(s, x, y); const w = g.measureText(s).width; g.restore();
+  const x0 = o.align === 'left' ? x : o.align === 'right' ? x - w : x - w / 2;
+  if (a > .95) TX.push({ id, text: s, x0, y0: y - (o.size ?? 34), x1: x0 + w, y1: y + 6, ...(o.pass ? { pass: true } : {}) });
+}
+function dot(x, y, r, col, a = 1, ring = 0) { g.save(); g.globalAlpha = a; g.fillStyle = col; g.shadowColor = col; g.shadowBlur = 18; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  if (ring > 0) { g.globalAlpha = a * (1 - ring); g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.arc(x, y, r + ring * 70, 0, Math.PI * 2); g.stroke(); } g.restore(); }
+function leader(x0, y0, x1, y1, col, a) { g.save(); g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.restore(); }
+const env = (t, a, b, fi = .3, fo = .3) => Math.min(seg(t, a, a + fi), 1 - seg(t, b - fo, b));
+const fmt = n => Math.round(n).toLocaleString('en-US');
+
+const CUES = []; for (const [id, t0, parts] of LINES) { const d = vdur[id], tot = parts.reduce((a, p) => a + p.length, 0); let s = t0;
+  parts.forEach((p, i) => { const dd = d * p.length / tot; CUES.push({ t0: s, t1: s + dd + (i === parts.length - 1 ? .45 : .05), text: p }); s += dd; }); }
+function subtitles(t) {
+  const c = CUES.find(c => t >= c.t0 - .05 && t < c.t1); if (!c) return;
+  const a = Math.min(seg(t, c.t0 - .05, c.t0 + .1), 1 - seg(t, c.t1 - .12, c.t1)), x = 64, y = Ht - 230, size = 44;
+  g.save(); const gr = g.createLinearGradient(0, Ht - 380, 0, Ht); gr.addColorStop(0, 'rgba(5,8,12,0)'); gr.addColorStop(1, 'rgba(5,8,12,.62)');
+  g.fillStyle = gr; g.globalAlpha = a; g.fillRect(0, Ht - 380, Wd, 380); g.fillStyle = C.amber; g.fillRect(x - 22, y - size + 4, 5, size + 8); g.restore();
+  txt('sub', c.text, x, y, { size, w: 600, align: 'left', a, col: '#f4efe6', blur: 8 });
+}
+
+// events for the mixer
+const EV = [{ t: .05, type: 'open' }, { t: HITS.ben, type: 'chime', note: 79 }, { t: HITS.border, type: 'ignite' }, { t: HITS.lesotho, type: 'chime', note: 74 },
+  { t: HITS.rise, type: 'rise', to: HITS.k1400 }, { t: HITS.k1000, type: 'land' }, { t: HITS.half, type: 'tick2' }, { t: HITS.k1400 - .5, type: 'suck' }, { t: HITS.k1400, type: 'land' },
+  { t: HITS.fifths, type: 'tick2' }, { t: HITS.wet, type: 'chime', note: 81 }, { t: HITS.low, type: 'whoosh' }, { t: HITS.peakN, type: 'swell' }, { t: HITS.drain2, type: 'drain' },
+  { t: HITS.y1868, type: 'drum' }, { t: HITS.y1966, type: 'drum' }, { t: HITS.around, type: 'ignite' }, { t: HITS.rise2, type: 'rise', to: HITS.rise2 + 2.6 }, { t: HITS.title, type: 'resolve' }];
+for (let m = 100; m <= 1400; m += 100) { let lo = HITS.rise, hi = HITS.k1400 + .1; for (let k = 0; k < 30; k++) { const x = (lo + hi) / 2; if (LEVEL(x) >= m) hi = x; else lo = x; } EV.push({ t: hi, type: 'tick' }); }
+
+// ---------- the frame ----------
+function frame(t) {
+  TX = [];
+  setCam(CAM(t));
+  const lvl = LEVEL(t); G.lvl.value = lvl; water.position.y = lvl / 1000 * EX / U;
+  G.glow.value = Math.max(env(t, 0, HITS.drain + .6, .3, .6), env(t, HITS.border, 26, .4, .8) * .6, env(t, HITS.drain2, DUR + 1, .4, .1));
+  const bI = Math.max(env(t, 0, 25.5, .2, .6), env(t, HITS.drain2 + .5, DUR + 1, .5, .1));
+  const rev = t < 12 ? eo(seg(t, .15, 1.6)) : 1;
+  for (const b of border) { b.core.u.inten.value = bI; b.glow.u.inten.value = bI; b.core.u.rev.value = b.core.L * rev + .01; b.glow.u.rev.value = b.glow.L * rev + .01;
+    b.core.u.head.value = b.core.L * rev; b.core.u.headAmt.value = 3 * (1 - seg(t, 1.4, 1.8)); b.core.u.soft.value = .6; }
+  if (t > HITS.around && t < HITS.around + 1.4) for (const b of border) b.core.u.inten.value *= 1 + 1.5 * Math.sin(Math.PI * seg(t, HITS.around, HITS.around + 1.4));
+  const pr = seg(t, HITS.peak - .2, HITS.peak + .7); peakRuler.u.rev.value = peakRuler.L * eo(pr) + .001; peakRuler.u.inten.value = env(t, HITS.peak - .2, HITS.drain2 + .3, .1, .4);
+  composer.render();
+
+  g.clearRect(0, 0, Wd, Ht);
+  const top = 250;
+  // hook: two heights
+  if (t < 7.2) {
+    const a = 1 - seg(t, 6.6, 7.2);
+    txt('h1l', "LESOTHO'S LOWEST POINT", Wd / 2, top - 60, { size: 32, w: 500, track: 8, col: C.amber2, a: a * seg(t, .1, .35) });
+    txt('h1', '1,400 M', Wd / 2, top + 40, { size: 120, w: 600, col: C.amber2, a: a * seg(t, .1, .35) });
+    txt('h2l', "BRITAIN'S HIGHEST PEAK", Wd / 2, top + 120, { size: 32, w: 500, track: 8, col: C.teal2, a: a * seg(t, HITS.ben, HITS.ben + .25) });
+    txt('h2', '1,345 M', Wd / 2, top + 210, { size: 96, w: 600, col: C.teal2, a: a * seg(t, HITS.ben, HITS.ben + .25) });
+  }
+  // l02: surrounded — South Africa named on every side
+  { const sa = env(t, HITS.border - .4, HITS.lesotho - .1, .3, .4);
+    [[26.7, -29.6], [28.4, -31.0], [29.45, -30.45], [28.0, -28.3]].forEach(([lo, la], i) => { const [x, y, v] = proj(lo, la, .2); if (v) txt('sb' + i, 'SOUTH AFRICA', x, y, { size: 30, w: 600, track: 10, col: C.ice, a: sa * seg(t, HITS.border - .4 + i * .15, HITS.border - .1 + i * .15), pass: true }); }); }
+  // names
+  { const a = env(t, HITS.lesotho - .2, 12.2, .3, .5), [x, y, v] = proj(28.3, -29.45, .4); if (v) txt('ls', 'LESOTHO', x, y, { size: 72, w: 600, track: 14, a });
+    const [x2, y2, v2] = proj(26.0, -30.6, .2); if (v2) txt('za', 'SOUTH AFRICA', x2, y2, { size: 40, w: 600, track: 12, col: C.ice, a }); }
+  // the rising sea: two readouts
+  if (t > HITS.rise - .3 && t < 26) {
+    const a = env(t, HITS.rise - .2, 25.8, .3, .5), sh = SHARE(lvl);
+    txt('s1l', 'SEA LEVEL', 64, 150, { size: 30, w: 500, track: 8, col: C.sea, align: 'left', a });
+    txt('s1', '+' + fmt(Math.round(lvl / 10) * 10) + ' M', 64, 258, { size: 110, w: 600, col: C.rule, align: 'left', a, pass: true });
+    txt('s2l', 'OF SOUTH AFRICA UNDERWATER', 64, 330, { size: 30, w: 500, track: 6, col: C.teal2, align: 'left', a: a * seg(t, HITS.k1000 - .3, HITS.k1000) });
+    txt('s2', Math.round(sh) + '%', 64, 436, { size: 110, w: 600, col: C.teal2, align: 'left', a: a * seg(t, HITS.k1000 - .3, HITS.k1000), pass: true });
+    const [x, y, v] = proj(28.3, -29.45, .4); const da = env(t, HITS.wet - 1.8, 25.8, .3, .4);
+    if (v) { txt('dry', 'LESOTHO', x, y - 40, { size: 64, w: 600, track: 12, a: da }); txt('dry2', 'STILL DRY', x, y + 8, { size: 34, w: 600, track: 8, col: C.amber2, a: da }); }
+  }
+  // extremes
+  { const a = env(t, HITS.low - .3, HITS.peak + .3, .3, .4), [x, y, v] = proj(LO, LA, .05);
+    if (v && a > 0) { dot(x, y, 9, C.amber2, a, seg(t, HITS.low, HITS.low + 1.2)); leader(x, y - 14, x, y - 110, C.rule, a);
+      txt('lo1', 'LOWEST POINT', x, y - 190, { size: 32, w: 500, track: 6, a }); txt('lo2', '≈1,400 M', x, y - 122, { size: 54, w: 600, col: C.amber2, a }); }
+    const b = env(t, HITS.peak + .3, HITS.drain2 + .3, .3, .4), [hx, hy, hv] = proj(HO, HA, .1);
+    if (hv && b > 0) { txt('pk1', 'THABANA NTLENYANA', hx, hy - 120, { size: 34, w: 500, track: 6, a: b }); txt('pk2', '3,482 M', hx, hy - 50, { size: 96, w: 600, col: C.amber2, a: b }); }
+    txt('hl', 'THE HIGHEST LOW POINT ON EARTH', Wd / 2, top - 20, { size: 50, w: 600, col: C.rule, a: env(t, HITS.low + .4, HITS.peak, .3, .3) }); }
+  // history
+  { const a1 = env(t, HITS.y1868 - .1, HITS.y1966 - .3, .3, .4), a2 = env(t, HITS.y1966 - .1, 46.4, .3, .4);
+    txt('y1', '1868', Wd / 2, top + 20, { size: 120, w: 600, col: C.rule, a: a1 }); txt('y1b', 'BRITISH PROTECTION FROM THE BOERS', Wd / 2, top + 80, { size: 34, w: 500, track: 6, col: C.ice, a: a1 });
+    txt('y2', '1966', Wd / 2, top + 20, { size: 120, w: 600, col: C.amber2, a: a2 }); txt('y2b', 'INDEPENDENT · SURROUNDED ON EVERY SIDE', Wd / 2, top + 80, { size: 34, w: 500, track: 6, col: C.amber2, a: a2 });
+    const sa = env(t, HITS.around - .1, 46.4, .3, .4);
+    [[26.7, -29.6], [28.4, -31.0], [29.45, -30.45], [28.0, -28.3]].forEach(([lo, la], i) => { const [x, y, v] = proj(lo, la, .2); if (v) txt('sa' + i, 'SOUTH AFRICA', x, y, { size: 30, w: 600, track: 10, col: C.ice, a: sa * seg(t, HITS.around + i * .15, HITS.around + .3 + i * .15), pass: true }); }); }
+  // ending
+  { const a = seg(t, HITS.title, HITS.title + .5);
+    txt('e1', 'KINGDOM', Wd / 2, top - 10, { size: 104, w: 600, col: C.rule, a }); txt('e2', 'IN THE SKY', Wd / 2, top + 90, { size: 104, w: 600, col: C.amber2, a: seg(t, HITS.title + .4, HITS.title + .9) }); }
+  subtitles(t);
+  txt('src', 'Terrain: AWS Terrain Tiles · Imagery: NASA Blue Marble · Borders: Natural Earth 1:10m · Relief ×6 · Flood shares measured from terrain', Wd / 2, Ht - 36, { size: 20, w: 500, col: 'rgba(230,235,240,.75)', pass: true, blur: 4 });
+}
+await Promise.all([400, 500, 600, 700].map(w => document.fonts.load(`${w} 40px Barlow`))); await document.fonts.ready;
+window.DUR = T1 != null ? T1 - T0 : DUR; window.EV = EV;
+window.render = t => frame(t + T0);
+window.TEXTS = t => { window.render(t); return TX.map(o => ({ ...o })); };
+window.render(0); window.READY = true;
+</script></body></html>
