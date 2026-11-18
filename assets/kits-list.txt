@@ -1,0 +1,7 @@
+# name|kind|source   (Kenney assets are CC0 1.0: https://kenney.nl/support)
+city-builder|git|https://github.com/KenneyNL/Starter-Kit-City-Builder
+city-suburban|page|https://kenney.nl/assets/city-kit-suburban
+city-commercial|page|https://kenney.nl/assets/city-kit-commercial
+city-roads|page|https://kenney.nl/assets/city-kit-roads
+car-kit|page|https://kenney.nl/assets/car-kit
+nature-kit|page|https://kenney.nl/assets/nature-kit

@@ -1,0 +1,42 @@
+name: Fetch CC0 3D model kits
+on:
+  push:
+    paths: ['assets/kits-list.txt']
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download kits (Kenney, CC0) and keep only the GLB models + licence
+        run: |
+          mkdir -p assets/kits; : > /tmp/log
+          while read -r line; do
+            case "$line" in ''|'#'*) continue;; esac
+            name=$(echo "$line" | cut -d'|' -f1); kind=$(echo "$line" | cut -d'|' -f2); src=$(echo "$line" | cut -d'|' -f3)
+            [ -d "assets/kits/$name" ] && { echo "have $name"; continue; }
+            rm -rf /tmp/k && mkdir -p /tmp/k
+            if [ "$kind" = "git" ]; then git clone --depth 1 "$src" /tmp/k/repo || continue
+            else
+              page=$(curl -sL -A "autostudio-kit-fetch/1.0" "$src")
+              zip=$(echo "$page" | grep -oE 'https://kenney\.nl/media/pages/assets/[^"]+\.zip' | head -1)
+              [ -z "$zip" ] && { echo "no zip on $src"; continue; }
+              curl -sL -A "autostudio-kit-fetch/1.0" -o /tmp/k/kit.zip "$zip" && (cd /tmp/k && unzip -q kit.zip -d repo) || continue
+              echo "$name $zip" >> /tmp/log
+            fi
+            mkdir -p "assets/kits/$name"
+            find /tmp/k/repo -iname '*.glb' -size -3M -exec cp {} "assets/kits/$name/" \;
+            find /tmp/k/repo -maxdepth 3 -iname 'License*' -exec cp {} "assets/kits/$name/" \; 2>/dev/null || true
+            find /tmp/k/repo -maxdepth 4 -iname 'colormap*.png' -exec cp {} "assets/kits/$name/" \; 2>/dev/null || true
+            find /tmp/k/repo -iname 'Textures' -type d -exec cp -r {} "assets/kits/$name/" \; 2>/dev/null || true
+            echo "$name: $(ls assets/kits/$name | wc -l) files"; echo "$name $src" >> /tmp/log
+          done < assets/kits-list.txt
+          cat /tmp/log >> assets/kits/SOURCES.txt
+          du -sh assets/kits
+      - name: Commit
+        run: |
+          git config user.name "autostudio-bot"; git config user.email "bot@users.noreply.github.com"
+          git add assets/kits; git commit -m "Fetch CC0 model kits" || echo "nothing new"; git push
