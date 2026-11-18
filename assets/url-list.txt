@@ -1,0 +1,4 @@
+# EOX Sentinel-2 cloudless 2016 (CC BY 4.0: "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)"), z12 around Thabana Ntlenyana, Lesotho
+tiles|assets/s2/lesotho|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|12|28.85|-29.75|29.55|-29.2
+# NASA Black Marble 2016 (public domain), cropped to China (lon 60-150E, lat 0-60N) on the 3 km grid (13500 x 6750)
+assets/nightlights/BlackMarble_2016_3km.jpg|https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg|9000,1125,12375,3375
