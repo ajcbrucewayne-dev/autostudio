@@ -6,3 +6,5 @@ city-roads|page|https://kenney.nl/assets/city-kit-roads
 car-kit|page|https://kenney.nl/assets/car-kit
 nature-kit|page|https://kenney.nl/assets/nature-kit
 # retry 1795014853
+racing|git|https://github.com/KenneyNL/Starter-Kit-Racing
+platformer|git|https://github.com/KenneyNL/Starter-Kit-3D-Platformer
