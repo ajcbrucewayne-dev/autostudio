@@ -1,7 +1,7 @@
 Kingdom in the Sky (Off The Map) — third-party material and licences
 
 Map data
-- Terrain: AWS Terrain Tiles (Mapzen terrarium; SRTM, GMTED2010, ETOPO1 and others), free with attribution. Downloaded 2026-11-17 (data/tiles8/fetch.log, data/tiles10/fetch.log).
+- Terrain: AWS Terrain Tiles (Mapzen terrarium; SRTM, GMTED2010, ETOPO1 and others), free with attribution. Downloaded 2026-11-18 (data/tiles8/fetch.log, data/tiles10/fetch.log).
 - Imagery: "Blue Marble: Land Surface, Shallow Water, and Shaded Topography", NASA Goddard Space Flight Center / NASA Visible Earth. Public domain.
   Via Wikimedia Commons, File:Whole_world_-_land_and_oceans_12000.jpg (cropped to 14–36°E, 20–36°S).
 - Borders: Natural Earth 1:10m Cultural Vectors, admin 0 countries (ne_10m_admin_0_countries_chn layer; Lesotho and South Africa outlines). Public domain.
