@@ -14,6 +14,7 @@ canvas{position:absolute;left:0;top:0}
 // pastel houses, low-poly trees, faceted cartoon sea, the 49th parallel as a glowing line. 10-second look test.
 import * as THREE from 'three';
 import { clamp, lerp, seg, ss, eo, eio, back } from '/core/lib.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const Wd = innerWidth, Ht = innerHeight, D2R = Math.PI / 180;
 const D = await fetch('assets/diorama.json').then(r => r.json());
 const [lon0b, lon1b, lat0b, lat1b] = D.box, LON0 = -123.0, LAT0 = 49.03, KX = 111.32 * Math.cos(49 * D2R), KZ = 111.32;
@@ -74,23 +75,28 @@ const cellT = [];   // rise time of each block (pops up from Point Roberts outwa
     m4.makeScale(1, hh, 1).setPosition(x, hh / 2, z); land.setMatrixAt(k, m4); col.setHex(COLS[cls][us]); land.setColorAt(k, col);
     cellT.push(Math.hypot(lo + 123.06, (la - 48.98) * 1.5) * 14); }); }
 board.add(land);
-// houses: pastel boxes with prism roofs
-const roofG = new THREE.ConeGeometry(.32, .26, 4); roofG.rotateY(Math.PI / 4); const bodyG = new THREE.BoxGeometry(.42, .3, .42);
-const WALL = [0xf2c9a0, 0xf6e3c6, 0xe8a7a0, 0xc9d8e8, 0xf3d27a], ROOF = [0xe06c4f, 0x7d5a8c, 0x3f8a8c, 0xd9534f, 0x5b6ea8];
-const hb = new THREE.InstancedMesh(bodyG, M(0xffffff), D.houses.length), hr = new THREE.InstancedMesh(roofG, M(0xffffff), D.houses.length);
-hb.castShadow = hr.castShadow = true; hb.receiveShadow = true;
-{ const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
-  D.houses.forEach(([lo, la, s, c, rot], k) => { const [x, z] = xz(lo, la), h = .3 * s, y0 = .3;
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot); m4.compose(new THREE.Vector3(x, y0 + h / 2, z), q, new THREE.Vector3(1, s, 1)); hb.setMatrixAt(k, m4); hb.setColorAt(k, col.setHex(WALL[c]));
-    m4.compose(new THREE.Vector3(x, y0 + h + .13, z), q, new THREE.Vector3(1, 1, 1)); hr.setMatrixAt(k, m4); hr.setColorAt(k, col.setHex(ROOF[c])); }); }
-board.add(hb, hr);
-// low-poly trees
-const crownG = [new THREE.ConeGeometry(.2, .55, 6), new THREE.IcosahedronGeometry(.23, 0), new THREE.ConeGeometry(.17, .45, 5)];
-const TREEC = [0x3f9a6a, 0x6fb36a, 0x2f7f72];
-const trees = crownG.map((g, i) => { const n = D.trees.filter(t => t[3] === i).length; const m = new THREE.InstancedMesh(g, M(TREEC[i]), Math.max(1, n)); m.castShadow = true; m.count = n; board.add(m); return m; });
-{ const m4 = new THREE.Matrix4(), cnt = [0, 0, 0];
-  D.trees.forEach(([lo, la, s, ty]) => { const [x, z] = xz(lo, la); m4.makeScale(s, s, s).setPosition(x, .32 + .25 * s, z); trees[ty].setMatrixAt(cnt[ty]++, m4); }); }
-
+// houses and trees: Kenney City-Builder / Racing kit models (MIT), instanced per mesh
+const gl = new GLTFLoader(); const loadG = u => new Promise((r, e) => gl.load(u, x => r(x.scene), undefined, e));
+const KIT = 'assets/kits/';
+const [hA, hB, hC, hD, hG, tr1, tr2, forest] = await Promise.all(['city-builder/building-small-a.glb', 'city-builder/building-small-b.glb', 'city-builder/building-small-c.glb',
+  'city-builder/building-small-d.glb', 'city-builder/building-garage.glb', 'city-builder/grass-trees.glb', 'city-builder/grass-trees-tall.glb', 'racing/decoration-forest.glb'].map(f => loadG(KIT + f)));
+function instancer(model, n, castShadow = true) {        // one InstancedMesh per mesh in the model; returns setters
+  model.updateMatrixWorld(true); const parts = [];
+  model.traverse(o => { if (o.isMesh) { const m = new THREE.InstancedMesh(o.geometry, o.material, Math.max(1, n)); m.count = n; m.castShadow = castShadow; m.receiveShadow = true;
+    m.userData.local = o.matrixWorld.clone(); board.add(m); parts.push(m); } });
+  const tmp = new THREE.Matrix4(); return { parts, set(k, mat) { for (const p of parts) p.setMatrixAt(k, tmp.multiplyMatrices(mat, p.userData.local)); }, done() { parts.forEach(p => p.instanceMatrix.needsUpdate = true); } };
+}
+const HOUSES = [hA, hB, hC, hD, hG], hsets = HOUSES.map((m, i) => instancer(m, D.houses.filter(h => h[3] % 5 === i).length));
+{ const cnt = [0, 0, 0, 0, 0], q = new THREE.Quaternion(), m = new THREE.Matrix4();
+  D.houses.forEach(([lo, la, s, c, rot]) => { const i = c % 5, [x, z] = xz(lo, la), sc = .46 + .1 * (s - 1);
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.round(rot / (Math.PI / 2)) * Math.PI / 2); m.compose(new THREE.Vector3(x, .3, z), q, new THREE.Vector3(sc, sc, sc)); hsets[i].set(cnt[i]++, m); });
+  hsets.forEach(h => h.done()); }
+const TREE_M = [tr1, tr2, forest], tsets = TREE_M.map((m, i) => instancer(m, D.trees.filter(t => t[3] === i).length));
+{ const cnt = [0, 0, 0], m = new THREE.Matrix4(), q = new THREE.Quaternion();
+  D.trees.forEach(([lo, la, s, ty], k) => { const [x, z] = xz(lo, la), sc = (ty === 2 ? .085 : .15) * s; q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (k % 4) * Math.PI / 2);
+    m.compose(new THREE.Vector3(x, .3, z), q, new THREE.Vector3(sc, sc, sc)); tsets[ty].set(cnt[ty]++, m); });
+  tsets.forEach(t => t.done()); }
+const kitParts = [...hsets, ...tsets].flatMap(h => h.parts);
 
 // the 49th parallel: a glowing bar across the board + two little border booths
 const line = new THREE.Mesh(new THREE.BoxGeometry(BW + .7, .06, .09), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd84a).multiplyScalar(2.2), toneMapped: false }));
@@ -121,7 +127,7 @@ function frame(t) {
   { const m = new THREE.Matrix4(); D.cells.forEach(([lo, la, cls, us, h], k) => { const p = back(seg(t, cellT[k] * .09, cellT[k] * .09 + .45), 2.2);
       const [x, z] = xz(lo, la), hh = (.14 + Math.min(h, 80) / 80 * .25) * Math.max(p, .001); m.makeScale(1, hh, 1).setPosition(x, hh / 2, z); land.setMatrixAt(k, m); });
     land.instanceMatrix.needsUpdate = true; }
-  const ap = clamp(seg(t, 1.0, 2.2)); hb.visible = hr.visible = ap > 0; hb.position.y = hr.position.y = lerp(-.6, 0, back(ap, 2)); trees.forEach(m => { m.visible = ap > 0; m.position.y = hb.position.y; });
+  const ap = clamp(seg(t, 1.0, 2.2)); kitParts.forEach(m => { m.visible = ap > 0; m.position.y = lerp(-.6, 0, back(ap, 2)); });
   waves(t);
   const li = eo(seg(t, .6, 2.2)); line.scale.x = glowL.scale.x = Math.max(li, .001); line.position.x = glowL.position.x = BCX + (1 - li) * BW / 2;
   glowL.material.opacity = .35 + .2 * Math.sin(t * 4);

@@ -26,8 +26,8 @@ for j in range(GH):
 houses, trees = [], []
 for lo, la, cls, us, h in cells:
     if cls == 'town' and rng.random() < .22: houses.append([lo + rng.uniform(-.001, .001), la + rng.uniform(-.0006, .0006), float(rng.uniform(1.0, 2.6)), int(rng.integers(0, 5)), float(rng.uniform(0, 3.14))])
-    if cls == 'green' and rng.random() < .7:
-        for k in range(int(rng.integers(1, 3))): trees.append([lo + rng.uniform(-.0016, .0016), la + rng.uniform(-.001, .001), float(rng.uniform(.7, 1.3)), int(rng.integers(0, 3))])
+    if cls == 'green' and rng.random() < .45:
+        for k in range(1): trees.append([lo + rng.uniform(-.0016, .0016), la + rng.uniform(-.001, .001), float(rng.uniform(.7, 1.3)), int(rng.integers(0, 3))])
     if cls == 'farm' and rng.random() < .06: trees.append([lo + rng.uniform(-.0016, .0016), la + rng.uniform(-.001, .001), float(rng.uniform(.6, 1.0)), 0])
 json.dump({'grid': [GW, GH], 'box': [-123.32, -122.68, 48.9, 49.16], 'cells': cells, 'houses': houses, 'trees': trees}, open('assets/diorama.json', 'w'))
 print(len(cells), 'land cells', len(houses), 'houses', len(trees), 'trees', 'town', int(town.sum()), 'green', int(green.sum()), 'farm', int(farm.sum()))
