@@ -2,3 +2,6 @@
 tiles|assets/s2/lesotho|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|12|28.85|-29.75|29.55|-29.2
 # NASA Black Marble 2016 (public domain), cropped to China (lon 60-150E, lat 0-60N) on the 3 km grid (13500 x 6750)
 assets/nightlights/BlackMarble_2016_3km.jpg|https://eoimages.gsfc.nasa.gov/images/imagerecords/144000/144898/BlackMarble_2016_3km.jpg|9000,1125,12375,3375
+# Point Roberts film: EOX Sentinel-2 cloudless 2016 (CC BY 4.0), region z11 and detail z13
+tiles|assets/s2/pointroberts_r|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|11|-124.3|48.45|-121.9|49.65
+tiles|assets/s2/pointroberts_d|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|13|-123.32|48.9|-122.68|49.16
