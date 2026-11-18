@@ -22,8 +22,10 @@ jobs:
             if [ "$kind" = "git" ]; then git clone --depth 1 "$src" /tmp/k/repo || continue
             else
               page=$(curl -sL -A "autostudio-kit-fetch/1.0" "$src")
-              zip=$(echo "$page" | grep -oE 'https://kenney\.nl/media/pages/assets/[^"]+\.zip' | head -1)
-              [ -z "$zip" ] && { echo "no zip on $src"; continue; }
+              zip=$(echo "$page" | grep -oE '(https://kenney\.nl)?/?media/pages/assets/[^"'"'"' ]+\.zip' | head -1)
+              case "$zip" in http*) ;; /*) zip="https://kenney.nl$zip";; ?*) zip="https://kenney.nl/$zip";; esac
+              [ -z "$zip" ] && { echo "no zip on $src"; echo "$page" | grep -oiE '[^"'"'"' ]*\.zip[^"'"'"' ]*' | head -5; continue; }
+              echo "zip: $zip"
               curl -sL -A "autostudio-kit-fetch/1.0" -o /tmp/k/kit.zip "$zip" && (cd /tmp/k && unzip -q kit.zip -d repo) || continue
               echo "$name $zip" >> /tmp/log
             fi
