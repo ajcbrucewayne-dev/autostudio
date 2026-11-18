@@ -37,3 +37,5 @@ search|assets/music|Kevin MacLeod Mesmerize filetype:audio|2
 search|assets/music|Kevin MacLeod Lost Frontier filetype:audio|2
 # Opuscar China film: NASA Blue Marble 24000x12000, cropped to lon 60-150E, lat 0-60N (public domain)
 assets/opuscar|Whole_world_-_land_and_oceans_12000.jpg|16000,2000,22000,6000
+# Opuscar Lesotho film: NASA Blue Marble 24000x12000 cropped to lon 14-36E, lat 20-36S (public domain)
+assets/opuscar|Whole_world_-_land_and_oceans_12000.jpg|12933,7333,14400,8400
