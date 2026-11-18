@@ -20,7 +20,7 @@ import { DUR, LINES, HITS, LEVEL, SHARE, CAM } from './timeline.js';
 
 const Wd = innerWidth, Ht = innerHeight, Q = new URLSearchParams(location.search);
 const T0 = +(Q.get('t0') || 0), T1 = Q.has('t1') ? +Q.get('t1') : null;
-const D2R = Math.PI / 180, U = 10, EX = 6;                  // world unit = 10 km; relief ×6
+const D2R = Math.PI / 180, U = 10, EX = +(new URLSearchParams(location.search).get('ex') || 6);                  // world unit = 10 km; relief ×6
 const J = u => fetch(u).then(r => r.json()), B = u => fetch(u).then(r => r.arrayBuffer());
 const [meta, lso, vdur, rRaw, dRaw] = await Promise.all([J('assets/meta.json'), J('assets/lesotho.json'), J('out/voice/dur.json'), B('assets/mesh_r.bin'), B('assets/mesh_d.bin')]);
 const HRb = new Float32Array(rRaw), HDb = new Float32Array(dRaw);
@@ -38,6 +38,7 @@ const geo = (lon, lat, lift = 0) => { const [X, Z] = xz(lon, lat); return new TH
 
 // ---------- renderer ----------
 const SS = +(Q.get('ss') || 1.5);
+const FX = { sh: Q.has('sh'), atmo: Q.has('atmo'), water: Q.has('water'), dof: Q.get('dof') === '1', s2: Q.has('s2'), low: Q.has('low') };
 const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
 renderer.setPixelRatio(1); renderer.setSize(Wd, Ht);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.55;
@@ -48,24 +49,29 @@ const scene = new THREE.Scene();
   const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; scene.background = tx; }
 const camera = new THREE.PerspectiveCamera(40, Wd / Ht, .05, 2000);
 const tl = new THREE.TextureLoader(), load = u => new Promise((r, e) => tl.load(u, r, undefined, e));
-const [albR, albD, nrmR, nrmD, hR, hD, mR, mD] = await Promise.all(['assets/albedo_r.jpg', 'assets/albedo_d.jpg', 'assets/normal_r.png', 'assets/normal_d.png',
-  'assets/height_r.png', 'assets/height_d.png', 'assets/mask_r.png', 'assets/mask_d.png'].map(load));
+const [albR, albD, nrmR, nrmD, hR, hD, mR, mD, shR, shD] = await Promise.all(['assets/albedo_r.jpg', FX.s2 ? 'assets/albedo_d_s2.jpg' : 'assets/albedo_d.jpg', 'assets/normal_r.png', 'assets/normal_d.png',
+  'assets/height_r.png', 'assets/height_d.png', 'assets/mask_r.png', 'assets/mask_d.png', 'assets/shadow_r.png', 'assets/shadow_d.png'].map(load));
 for (const t of [albR, albD]) t.colorSpace = THREE.SRGBColorSpace;
 for (const t of [albR, albD, nrmR, nrmD, mR, mD]) t.anisotropy = 8;
 for (const t of [hR, hD]) { t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; }
 
 // ---------- terrain: one fixed low sun from the north-west ----------
-const SUNV = new THREE.Vector3(Math.sin(315 * D2R) * Math.cos(24 * D2R), Math.sin(24 * D2R), -Math.cos(315 * D2R) * Math.cos(24 * D2R)).normalize();
-const G = { lvl: { value: 0 }, glow: { value: 0 }, camP: { value: new THREE.Vector3() }, fogD: { value: 300 }, resY: { value: 1920 }, sunV: { value: SUNV } };
+const SEL = FX.sh || FX.atmo || FX.water || FX.dof || FX.s2 || FX.low ? 15 : 24, SAZ = SEL === 15 ? 300 : 315;
+const SUNV = new THREE.Vector3(Math.sin(SAZ * D2R) * Math.cos(SEL * D2R), Math.sin(SEL * D2R), -Math.cos(SAZ * D2R) * Math.cos(SEL * D2R)).normalize();
+const G = { lvl: { value: 0 }, glow: { value: 0 }, useSh: { value: Q.has('dbgsh') ? 2 : FX.sh ? 1 : 0 }, labL: { value: (FX.sh || FX.atmo || FX.water || FX.dof || FX.s2 || FX.low) ? 1 : 0 }, atmo: { value: FX.atmo ? 1 : 0 }, wfx: { value: FX.water ? 1 : 0 }, time: { value: 0 }, camP: { value: new THREE.Vector3() }, fogD: { value: 300 }, resY: { value: 1920 }, sunV: { value: SUNV } };
 const SKY = `vec3 lin(vec3 c){ return pow(c, vec3(2.2)); }
   vec3 skyAt(float v){ vec3 a = vec3(.016,.027,.047), b = vec3(.043,.086,.133), c = vec3(.141,.220,.298), d = vec3(.227,.298,.361);
     vec3 s = v < .55 ? mix(a, b, v / .55) : v < .8 ? mix(b, c, (v - .55) / .25) : mix(c, d, (v - .8) / .2); return lin(s); }`;
-function terMat(alb, nrm, msk, box, inner) {
+const NOISE = `float hh(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float vn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3. - 2. * f); return mix(mix(hh(i), hh(i + vec2(1, 0)), u.x), mix(hh(i + vec2(0, 1)), hh(i + vec2(1, 1)), u.x), u.y); }
+  float fbm(vec2 p){ float a = .5, v = 0.; for (int i = 0; i < 5; i++) { v += a * vn(p); p *= 2.03; a *= .5; } return v; }
+  float cloudAt(vec2 ll){ vec2 p = ll * 1.6 + vec2(time * .05, time * .012); return smoothstep(.62, .86, fbm(p)) ; }`;
+function terMat(alb, nrm, msk, box, inner, shd) {
   return new THREE.ShaderMaterial({
     uniforms: { tAlb: { value: alb }, tNrm: { value: nrm }, tMask: { value: msk }, box: { value: new THREE.Vector4(...box) }, inner: { value: new THREE.Vector4(...(inner || [0, 0, 0, 0])) },
-      tAlbR: { value: albR }, tNrmR: { value: nrmR }, rbox: { value: new THREE.Vector4(r0, r2, r1, r3) }, ...G },
+      tAlbR: { value: albR }, tNrmR: { value: nrmR }, tShad: { value: shd }, tShadR: { value: shR }, rbox: { value: new THREE.Vector4(r0, r2, r1, r3) }, ...G },
     vertexShader: `attribute vec2 aLL; varying vec2 vLL; varying vec3 vW; void main(){ vLL = aLL; vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: `varying vec2 vLL; varying vec3 vW; uniform sampler2D tAlb, tNrm, tMask, tAlbR, tNrmR; uniform vec4 box, inner, rbox; uniform float glow, fogD, resY; uniform vec3 camP, sunV; ${SKY}
+    fragmentShader: `varying vec2 vLL; varying vec3 vW; uniform sampler2D tAlb, tNrm, tMask, tAlbR, tNrmR, tShad, tShadR; uniform vec4 box, inner, rbox; uniform float useSh, atmo, time, labL; uniform float glow, fogD, resY; uniform vec3 camP, sunV; ${SKY} ${NOISE}
       void main(){
         if (inner.z > inner.x && vLL.x > inner.x && vLL.x < inner.z && vLL.y > inner.y && vLL.y < inner.w) discard;      // the detail mesh covers this
         vec2 uv = vec2((vLL.x - box.x) / (box.z - box.x), (vLL.y - box.y) / (box.w - box.y));
@@ -76,10 +82,14 @@ function terMat(alb, nrm, msk, box, inner) {
         vec3 nR = normalize(texture2D(tNrmR, ur).rgb * 2. - 1.); vec3 aR = lin(texture2D(tAlbR, ur).rgb);
         if (box.z - box.x < 10.) { n = normalize(mix(nR, n, fe)); alb = mix(aR, alb, fe); }
         float lam = max(dot(n, sunV), 0.);
-        vec3 col = alb * (vec3(1., .86, .66) * lam * 2.7 + vec3(.32, .40, .50) * (.55 + .45 * n.y) * .75);
+        if (useSh > .5) { float sh = texture2D(tShad, vec2(uv.x, 1. - uv.y)).r; if (box.z - box.x < 10.) sh = mix(texture2D(tShadR, ur).r, sh, fe); lam *= mix(.04, 1., sh); if (useSh > 1.5) { gl_FragColor = vec4(vec3(sh), 1.); return; } }
+        if (atmo > .5) lam *= 1. - .55 * cloudAt(vLL + vec2(.06, -.06));   // cloud shadows, offset toward the sun
+        vec3 col = labL > .5 ? alb * (vec3(1., .84, .62) * lam * 4.2 + vec3(.26, .36, .52) * (.55 + .45 * n.y) * .55)
+                             : alb * (vec3(1., .86, .66) * lam * 2.7 + vec3(.32, .40, .50) * (.55 + .45 * n.y) * .75);
         float m = texture2D(tMask, vec2(uv.x, 1. - uv.y)).r;
         col = mix(col, col * 1.05 + vec3(.05, .025, .0) * lam, glow * m * .6);     // Lesotho warmed by the kingdom's glow
         float dist = length(vW - camP); col = mix(col, lin(vec3(.40, .46, .52)) * .35, (1. - exp(-pow(dist / fogD, 2.))) * .55);
+        if (atmo > .5) { float hz = 1. - exp(-dist / (fogD * .9)); col = mix(col, lin(vec3(.62, .66, .70)) * .55 + lin(vec3(.9, .6, .35)) * .12, hz * .5); }
         float edge = smoothstep(-21.5, -20.2, vLL.y) + smoothstep(15.6, 14.2, vLL.x) + smoothstep(34.4, 35.8, vLL.x) + smoothstep(-34.3, -35.8, vLL.y);
         col = mix(col, skyAt(1. - gl_FragCoord.y / resY), clamp(edge, 0., 1.));
         gl_FragColor = vec4(col, 1.); }` });
@@ -92,8 +102,19 @@ function terrain(buf, w, h, box, mat, lower = 0) {
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('aLL', new THREE.BufferAttribute(ll, 2)); g.setIndex(idx);
   const m = new THREE.Mesh(g, mat); m.frustumCulled = false; scene.add(m); return m;
 }
-terrain(HRb, RW, RH, meta.R, terMat(albR, nrmR, mR, [r0, r2, r1, r3], [d0 + .02, d2 + .02, d1 - .02, d3 - .02]), .004);
-terrain(HDb, DW, DH, meta.Dt, terMat(albD, nrmD, mD, [d0, d2, d1, d3]));
+terrain(HRb, RW, RH, meta.R, terMat(albR, nrmR, mR, [r0, r2, r1, r3], [d0 + .02, d2 + .02, d1 - .02, d3 - .02], shR), .004);
+terrain(HDb, DW, DH, meta.Dt, terMat(albD, nrmD, mD, [d0, d2, d1, d3], null, shD));
+if (FX.atmo) {      // a soft cloud deck above the mountains (same noise as the ground shadows)
+  const g2 = new THREE.PlaneGeometry((r1 - r0) * KX, (r3 - r2) * KZ, 1, 1); g2.rotateX(-Math.PI / 2); const [cx, cz] = xz((r0 + r1) / 2, (r2 + r3) / 2);
+  const cm = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, uniforms: { ...G },
+    vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `varying vec3 vW; uniform float time; uniform vec3 camP; ${NOISE}
+      void main(){ vec2 ll = vec2(${LON0.toFixed(4)} + vW.x / ${KX.toFixed(6)}, ${LAT0.toFixed(4)} - vW.z / ${KZ.toFixed(6)}); float c = cloudAt(ll);
+        float d = fbm(ll * 6. + time * .05); vec3 col = mix(vec3(.62, .64, .70), vec3(1.05, 1.0, .94), clamp(.45 + .6 * d, 0., 1.));
+        float near = smoothstep(4., 14., length(vW - camP));                   // fade clouds the camera flies through
+        gl_FragColor = vec4(col, c * .5 * near); }` });
+  const cl = new THREE.Mesh(g2, cm); cl.position.set(cx, 3.0, cz); cl.renderOrder = 4; cl.frustumCulled = false; scene.add(cl);
+}
 
 // ---------- the sea, raised: a water plane with a glowing shoreline (depth from the height textures) ----------
 const water = (() => {
@@ -102,7 +123,7 @@ const water = (() => {
   const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, toneMapped: true,
     uniforms: { tHR: { value: hR }, tHD: { value: hD }, ...G },
     vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
-    fragmentShader: `varying vec3 vW; uniform sampler2D tHR, tHD; uniform float lvl, fogD, resY; uniform vec3 camP; ${SKY}
+    fragmentShader: `varying vec3 vW; uniform sampler2D tHR, tHD; uniform float lvl, fogD, resY, wfx, time; uniform vec3 camP, sunV; ${SKY} ${NOISE}
       float H(sampler2D t, vec2 uv){ vec3 c = texture2D(t, uv).rgb; return (c.r * 255. * 256. + c.g * 255.) - 12000.; }
       void main(){
         float lon = ${LON0.toFixed(4)} + vW.x / ${KX.toFixed(6)}, lat = ${LAT0.toFixed(4)} - vW.z / ${KZ.toFixed(6)};
@@ -113,7 +134,16 @@ const water = (() => {
         float k = clamp(dep / 900., 0., 1.);
         vec3 col = mix(lin(vec3(.13, .42, .46)), lin(vec3(.03, .10, .17)), pow(k, .6));
         float shore = exp(-pow(dep / 9., 2.));
-        col += vec3(1.3, 1.0, .7) * shore * .9;                                       // the glowing waterline
+        if (wfx > .5) {
+          vec2 wp = vec2(lon, lat) * 140.; float t2 = time * .6;
+          vec3 wn = normalize(vec3((vn(wp + t2) - vn(wp - vec2(.5) - t2)) * .35, 1., (vn(wp.yx * 1.3 + t2) - vn(wp.yx * 1.3 - t2)) * .35));
+          vec3 vdir = normalize(camP - vW); vec3 hv = normalize(vdir + sunV);
+          col += vec3(1.6, 1.3, .9) * pow(max(dot(wn, hv), 0.), 28.) * 3.0;                      // sun glints
+          col *= .92 + .16 * vn(wp * .5 + t2 * .3);                                                // swell
+          float foam = smoothstep(.45, .75, vn(vec2(lon, lat) * 900. + time)) * exp(-pow(dep / 14., 2.));
+          col = mix(col, vec3(.95, .97, 1.), foam * .85);
+          col += vec3(1.3, 1.0, .7) * shore * .35;
+        } else col += vec3(1.3, 1.0, .7) * shore * .9;                                       // the glowing waterline
         float dist = length(vW - camP); col = mix(col, lin(vec3(.40, .46, .52)) * .35, (1. - exp(-pow(dist / fogD, 2.))) * .5);
         float edge = smoothstep(-21.5, -20.2, lat) + smoothstep(15.6, 14.2, lon) + smoothstep(34.4, 35.8, lon) + smoothstep(-34.3, -35.8, lat);
         col = mix(col, skyAt(1. - gl_FragCoord.y / resY), clamp(edge, 0., 1.));
@@ -162,7 +192,8 @@ function setCam(c) {
   const [X, Z] = xz(c.lon, c.lat), Y = yOf(hAt(c.lon, c.lat)) * .5, th = c.tilt * D2R, hd = c.head * D2R;
   const off = new THREE.Vector3(-Math.sin(hd) * Math.sin(th), Math.cos(th), Math.cos(hd) * Math.sin(th)).multiplyScalar(c.d);
   camera.position.set(X + off.x, Y + off.y, Z + off.z); camera.up.set(0, 1, 0); camera.lookAt(X, Y, Z); camera.updateMatrixWorld();
-  G.camP.value.copy(camera.position); G.fogD.value = Math.max(80, c.d * 2.4); G.resY.value = Ht * SS; dof.maxCoc = 0;
+  G.camP.value.copy(camera.position); G.fogD.value = Math.max(80, c.d * 2.4); G.resY.value = Ht * SS;
+  if (FX.dof) { dof.focus = c.d; dof.aper = 420 / c.d; dof.maxCoc = 14; } else dof.maxCoc = 0;
 }
 
 // ---------- 2D overlay ----------
@@ -205,7 +236,7 @@ for (let m = 100; m <= 1400; m += 100) { let lo = HITS.rise, hi = HITS.k1400 + .
 // ---------- the frame ----------
 function frame(t) {
   TX = [];
-  setCam(CAM(t));
+  setCam(Q.has('cam') ? (([lon, lat, d, tilt, head]) => ({ lon, lat, d, tilt, head }))(Q.get('cam').split(',').map(Number)) : CAM(t)); G.time.value = t;
   const lvl = LEVEL(t); G.lvl.value = lvl; water.position.y = lvl / 1000 * EX / U;
   G.glow.value = Math.max(env(t, 0, HITS.drain + .6, .3, .6), env(t, HITS.border, 26, .4, .8) * .6, env(t, HITS.drain2, DUR + 1, .4, .1));
   const bI = Math.max(env(t, 0, 25.5, .2, .6), env(t, HITS.drain2 + .5, DUR + 1, .5, .1));
@@ -217,6 +248,7 @@ function frame(t) {
   composer.render();
 
   g.clearRect(0, 0, Wd, Ht);
+  if (Q.has('clean')) return;
   const top = 250;
   // hook: two heights
   if (t < 7.2) {
