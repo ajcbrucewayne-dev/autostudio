@@ -1,1 +1,3 @@
 city-builder https://github.com/KenneyNL/Starter-Kit-City-Builder
+racing https://github.com/KenneyNL/Starter-Kit-Racing
+platformer https://github.com/KenneyNL/Starter-Kit-3D-Platformer
