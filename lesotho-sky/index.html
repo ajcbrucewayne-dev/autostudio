@@ -75,18 +75,18 @@ function terMat(alb, nrm, msk, box, inner, shd) {
       void main(){
         if (inner.z > inner.x && vLL.x > inner.x && vLL.x < inner.z && vLL.y > inner.y && vLL.y < inner.w) discard;      // the detail mesh covers this
         vec2 uv = vec2((vLL.x - box.x) / (box.z - box.x), (vLL.y - box.y) / (box.w - box.y));
-        vec3 alb = lin(texture2D(tAlb, vec2(uv.x, 1. - uv.y)).rgb);
-        vec3 n = normalize(texture2D(tNrm, vec2(uv.x, 1. - uv.y)).rgb * 2. - 1.);
-        vec2 ur = vec2((vLL.x - rbox.x) / (rbox.z - rbox.x), 1. - (vLL.y - rbox.y) / (rbox.w - rbox.y));
+        vec3 alb = lin(texture2D(tAlb, vec2(uv.x, uv.y)).rgb);
+        vec3 n = normalize(texture2D(tNrm, vec2(uv.x, uv.y)).rgb * 2. - 1.);
+        vec2 ur = vec2((vLL.x - rbox.x) / (rbox.z - rbox.x), (vLL.y - rbox.y) / (rbox.w - rbox.y));
         float eb = min(min(vLL.x - box.x, box.z - vLL.x), min(vLL.y - box.y, box.w - vLL.y)); float fe = smoothstep(.02, .3, eb);
         vec3 nR = normalize(texture2D(tNrmR, ur).rgb * 2. - 1.); vec3 aR = lin(texture2D(tAlbR, ur).rgb);
         if (box.z - box.x < 10.) { n = normalize(mix(nR, n, fe)); alb = mix(aR, alb, fe); }
         float lam = max(dot(n, sunV), 0.);
-        if (useSh > .5) { float sh = texture2D(tShad, vec2(uv.x, 1. - uv.y)).r; if (box.z - box.x < 10.) sh = mix(texture2D(tShadR, ur).r, sh, fe); lam *= mix(.04, 1., sh); if (useSh > 1.5) { gl_FragColor = vec4(vec3(sh), 1.); return; } }
+        if (useSh > .5) { float sh = texture2D(tShad, vec2(uv.x, uv.y)).r; if (box.z - box.x < 10.) sh = mix(texture2D(tShadR, ur).r, sh, fe); lam *= mix(.04, 1., sh); if (useSh > 1.5) { gl_FragColor = vec4(vec3(sh), 1.); return; } }
         if (atmo > .5) lam *= 1. - .55 * cloudAt(vLL + vec2(.06, -.06));   // cloud shadows, offset toward the sun
         vec3 col = labL > .5 ? alb * (vec3(1., .84, .62) * lam * 4.2 + vec3(.26, .36, .52) * (.55 + .45 * n.y) * .55)
                              : alb * (vec3(1., .86, .66) * lam * 2.7 + vec3(.32, .40, .50) * (.55 + .45 * n.y) * .75);
-        float m = texture2D(tMask, vec2(uv.x, 1. - uv.y)).r;
+        float m = texture2D(tMask, vec2(uv.x, uv.y)).r;
         col = mix(col, col * 1.05 + vec3(.05, .025, .0) * lam, glow * m * .6);     // Lesotho warmed by the kingdom's glow
         float dist = length(vW - camP); col = mix(col, lin(vec3(.40, .46, .52)) * .35, (1. - exp(-pow(dist / fogD, 2.))) * .55);
         if (atmo > .5) { float hz = 1. - exp(-dist / (fogD * .9)); col = mix(col, lin(vec3(.62, .66, .70)) * .55 + lin(vec3(.9, .6, .35)) * .12, hz * .5); }
@@ -128,8 +128,8 @@ const water = (() => {
       void main(){
         float lon = ${LON0.toFixed(4)} + vW.x / ${KX.toFixed(6)}, lat = ${LAT0.toFixed(4)} - vW.z / ${KZ.toFixed(6)};
         float h;
-        if (lon > ${d0.toFixed(3)} && lon < ${d1.toFixed(3)} && lat > ${d2.toFixed(3)} && lat < ${d3.toFixed(3)}) h = H(tHD, vec2((lon - ${d0.toFixed(3)}) / ${(d1 - d0).toFixed(3)}, (${d3.toFixed(3)} - lat) / ${(d3 - d2).toFixed(3)}));
-        else h = H(tHR, vec2((lon - ${r0.toFixed(3)}) / ${(r1 - r0).toFixed(3)}, (${r3.toFixed(3)} - lat) / ${(r3 - r2).toFixed(3)}));
+        if (lon > ${d0.toFixed(3)} && lon < ${d1.toFixed(3)} && lat > ${d2.toFixed(3)} && lat < ${d3.toFixed(3)}) h = H(tHD, vec2((lon - ${d0.toFixed(3)}) / ${(d1 - d0).toFixed(3)}, (lat - ${d2.toFixed(3)}) / ${(d3 - d2).toFixed(3)}));
+        else h = H(tHR, vec2((lon - ${r0.toFixed(3)}) / ${(r1 - r0).toFixed(3)}, (lat - ${r2.toFixed(3)}) / ${(r3 - r2).toFixed(3)}));
         float dep = lvl - max(h, 0.); if (dep < 0. || lvl < 1.) discard;
         float k = clamp(dep / 900., 0., 1.);
         vec3 col = mix(lin(vec3(.13, .42, .46)), lin(vec3(.03, .10, .17)), pow(k, .6));

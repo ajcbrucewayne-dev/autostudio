@@ -1,0 +1,20 @@
+The Town You Can't Drive To (Off The Map) — third-party material and licences
+
+Map data
+- Imagery: Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016). CC BY 4.0.
+  Tiles: layer s2cloudless_3857, zoom 11 (region) and 13 (Point Roberts), fetched 2026-11-18 (../assets/url-fetch.log).
+- Terrain: AWS Terrain Tiles (Mapzen terrarium; SRTM, GMTED2010, ETOPO1, USGS NED/CDEM and others), free with attribution. Zoom 10 and 13 (data/t10/fetch.log, data/t13/fetch.log).
+- Point Roberts outline traced from the terrain's coastline south of 49°N; the 49th parallel drawn at 49.0002°N. Route on screen is schematic.
+- Relief exaggerated ×2.
+
+Sound
+- Narration: Kokoro TTS (kokoro-onnx), voice bm_lewis. Apache 2.0.
+- Samples (CC0): VS Chamber Orchestra: Community Edition (Versilian Studios); Versilian Community Sample Library (Versilian Studios).
+  Instruments: cellos, contrabass, contrabass (pizzicato), violins (pizzicato), horn, horn (staccato), timpani, harp, glockenspiel, bowed vibraphone, hand chimes, frame drum.
+- Foley and ambience: synthesised (numpy).
+
+Type
+- Barlow Condensed by Jeremy Tribby, SIL Open Font License 1.1 (fonts/OFL.txt).
+
+Software
+- three.js r170 (MIT); Lemo-Opuscar rendering, audio and post tools (core/three/post.js copied as post.js).
