@@ -1,0 +1,151 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>Point Roberts Diorama</title>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<style>
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-SemiBold.ttf);font-weight:600}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+html,body{margin:0;background:#1d1830;overflow:hidden}
+canvas{position:absolute;left:0;top:0}
+</style></head>
+<body>
+<script type="module">
+// Point Roberts as an isometric toy diorama: real coastline and land use (Sentinel-2) rebuilt as chunky blocks,
+// pastel houses, low-poly trees, faceted cartoon sea, the 49th parallel as a glowing line. 10-second look test.
+import * as THREE from 'three';
+import { clamp, lerp, seg, ss, eo, eio, back } from '/core/lib.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const Wd = innerWidth, Ht = innerHeight, D2R = Math.PI / 180;
+const D = await fetch('assets/diorama.json').then(r => r.json());
+const [lon0b, lon1b, lat0b, lat1b] = D.box, LON0 = -123.0, LAT0 = 49.03, KX = 111.32 * Math.cos(49 * D2R), KZ = 111.32;
+const xz = (lon, lat) => [(lon - LON0) * KX, -(lat - LAT0) * KZ];                 // km
+const CW = .004 * KX, CH = .0026 * KZ;                                             // cell size (km)
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1.5); renderer.setSize(Wd, Ht); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+{ // backdrop: deep violet with a soft glow and faint specks (like a studio sky)
+  const c = document.createElement('canvas'); c.width = 512; c.height = 1024; const q = c.getContext('2d');
+  const gr = q.createRadialGradient(256, 430, 40, 256, 470, 700); gr.addColorStop(0, '#6a4a9a'); gr.addColorStop(.45, '#2f2650'); gr.addColorStop(1, '#141123');
+  q.fillStyle = gr; q.fillRect(0, 0, 512, 1024); let s = 3; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 260; i++) { q.globalAlpha = .15 + .5 * rnd(); q.fillStyle = '#ffffff'; q.beginPath(); q.arc(rnd() * 512, rnd() * 1024, rnd() * 1.4 + .3, 0, 7); q.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; scene.background = t;
+}
+// isometric orthographic camera
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -500, 500);
+function setCam(cx, cz, size, yaw, pitch = 35.264) {
+  const asp = Wd / Ht; cam.left = -size * asp / 2; cam.right = size * asp / 2; cam.top = size / 2; cam.bottom = -size / 2; cam.updateProjectionMatrix();
+  const y = yaw * D2R, p = pitch * D2R, r = 200;
+  cam.position.set(cx + r * Math.cos(p) * Math.sin(y), r * Math.sin(p), cz + r * Math.cos(p) * Math.cos(y)); cam.lookAt(cx, 0, cz); cam.updateMatrixWorld();
+}
+// light: warm key with soft shadows + cool fill (three tones per face)
+const sun = new THREE.DirectionalLight(0xfff0dc, 2.6); sun.position.set(-40, 70, 30); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 300 }); sun.shadow.bias = -.0008; sun.shadow.radius = 3;
+scene.add(sun, new THREE.HemisphereLight(0xc8c0ff, 0x3a2a40, 1.1));
+const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .85, metalness: 0, flatShading: true, ...o });
+
+// the floating board: a thick cream slab with darker strata on its sides
+const [bx0, bz0] = xz(lon0b, lat1b), [bx1, bz1] = xz(lon1b, lat0b), BW = bx1 - bx0, BD = bz1 - bz0, BCX = (bx0 + bx1) / 2, BCZ = (bz0 + bz1) / 2;
+const board = new THREE.Group(); scene.add(board);
+{ const base = new THREE.Mesh(new THREE.BoxGeometry(BW + .6, 2.2, BD + .6), [M(0xe9dcc6), M(0xe9dcc6), M(0xf3ead8), M(0x2b2440), M(0xd8c6a8), M(0xd8c6a8)]);
+  base.position.set(BCX, -1.25, BCZ); base.receiveShadow = true; board.add(base);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(BW + .62, .5, BD + .62), M(0x4f7fa8)); band.position.set(BCX, -.38, BCZ); board.add(band); }  // water column stripe
+
+// faceted cartoon sea (low-poly, animated)
+const SEA = new THREE.PlaneGeometry(BW, BD, 70, 44); SEA.rotateX(-Math.PI / 2); const seaBase = SEA.attributes.position.array.slice();
+SEA.setAttribute('color', new THREE.BufferAttribute(new Float32Array(SEA.attributes.position.count * 3), 3));
+const sea = new THREE.Mesh(SEA, M(0xffffff, { roughness: .3, vertexColors: true })); sea.position.set(BCX, -.02, BCZ); sea.receiveShadow = true; board.add(sea);
+function waves(t) { const p = SEA.attributes.position.array;
+  const cA = SEA.attributes.color.array, deep = new THREE.Color(0x2b86b8), crest = new THREE.Color(0xbff0f5), c = new THREE.Color();
+  for (let i = 0; i < p.length; i += 3) { const x = seaBase[i], z = seaBase[i + 2];
+    const h = .13 * Math.sin(x * .9 + t * 1.6) + .1 * Math.sin(z * 1.1 - t * 1.2) + .05 * Math.sin((x + z) * 2.1 + t * 2.3); p[i + 1] = h;
+    c.copy(deep).lerp(crest, clamp((h - .17) / .14) * .8); cA[i] = c.r; cA[i + 1] = c.g; cA[i + 2] = c.b; }
+  SEA.attributes.color.needsUpdate = true;
+  SEA.attributes.position.needsUpdate = true; SEA.computeVertexNormals(); }
+
+// land blocks (instanced), coloured by use; USA side slightly warmer
+const COLS = { town: [0xb7b3c9, 0xc9b9c0], green: [0x7fbf7a, 0x88c47a], farm: [0xd8c97a, 0xe2c57d] };
+const blk = new THREE.BoxGeometry(CW * 1.001, 1, CH * 1.001);
+const land = new THREE.InstancedMesh(blk, M(0xffffff), D.cells.length); land.castShadow = land.receiveShadow = true;
+const cellT = [];   // rise time of each block (pops up from Point Roberts outward)
+{ const m4 = new THREE.Matrix4(), col = new THREE.Color();
+  D.cells.forEach(([lo, la, cls, us, h], k) => { const [x, z] = xz(lo, la); const hh = .14 + Math.min(h, 80) / 80 * .25;
+    m4.makeScale(1, hh, 1).setPosition(x, hh / 2, z); land.setMatrixAt(k, m4); col.setHex(COLS[cls][us]); land.setColorAt(k, col);
+    cellT.push(Math.hypot(lo + 123.06, (la - 48.98) * 1.5) * 14); }); }
+board.add(land);
+// houses and trees: Kenney City-Builder / Racing kit models (MIT), instanced per mesh
+const gl = new GLTFLoader(); const loadG = u => new Promise((r, e) => gl.load(u, x => r(x.scene), undefined, e));
+const KIT = 'assets/kits/';
+const [hA, hB, hC, hD, hG, tr1, tr2, forest] = await Promise.all(['city-builder/building-small-a.glb', 'city-builder/building-small-b.glb', 'city-builder/building-small-c.glb',
+  'city-builder/building-small-d.glb', 'city-builder/building-garage.glb', 'city-builder/grass-trees.glb', 'city-builder/grass-trees-tall.glb', 'racing/decoration-forest.glb'].map(f => loadG(KIT + f)));
+function instancer(model, n, castShadow = true) {        // one InstancedMesh per mesh in the model; returns setters
+  model.updateMatrixWorld(true); const parts = [];
+  model.traverse(o => { if (o.isMesh) { const m = new THREE.InstancedMesh(o.geometry, o.material, Math.max(1, n)); m.count = n; m.castShadow = castShadow; m.receiveShadow = true;
+    m.userData.local = o.matrixWorld.clone(); board.add(m); parts.push(m); } });
+  const tmp = new THREE.Matrix4(); return { parts, set(k, mat) { for (const p of parts) p.setMatrixAt(k, tmp.multiplyMatrices(mat, p.userData.local)); }, done() { parts.forEach(p => p.instanceMatrix.needsUpdate = true); } };
+}
+const HOUSES = [hA, hB, hC, hD, hG], hsets = HOUSES.map((m, i) => instancer(m, D.houses.filter(h => h[3] % 5 === i).length));
+{ const cnt = [0, 0, 0, 0, 0], q = new THREE.Quaternion(), m = new THREE.Matrix4();
+  D.houses.forEach(([lo, la, s, c, rot]) => { const i = c % 5, [x, z] = xz(lo, la), sc = .46 + .1 * (s - 1);
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.round(rot / (Math.PI / 2)) * Math.PI / 2); m.compose(new THREE.Vector3(x, .3, z), q, new THREE.Vector3(sc, sc, sc)); hsets[i].set(cnt[i]++, m); });
+  hsets.forEach(h => h.done()); }
+const TREE_M = [tr1, tr2, forest], tsets = TREE_M.map((m, i) => instancer(m, D.trees.filter(t => t[3] === i).length));
+{ const cnt = [0, 0, 0], m = new THREE.Matrix4(), q = new THREE.Quaternion();
+  D.trees.forEach(([lo, la, s, ty], k) => { const [x, z] = xz(lo, la), sc = (ty === 2 ? .085 : .15) * s; q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (k % 4) * Math.PI / 2);
+    m.compose(new THREE.Vector3(x, .3, z), q, new THREE.Vector3(sc, sc, sc)); tsets[ty].set(cnt[ty]++, m); });
+  tsets.forEach(t => t.done()); }
+const kitParts = [...hsets, ...tsets].flatMap(h => h.parts);
+
+// the 49th parallel: a glowing bar across the board + two little border booths
+const line = new THREE.Mesh(new THREE.BoxGeometry(BW + .7, .06, .09), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd84a).multiplyScalar(2.2), toneMapped: false }));
+const [, lz] = xz(-123, 49.0); line.position.set(BCX, .5, lz); board.add(line);
+const glowL = new THREE.Mesh(new THREE.BoxGeometry(BW + .7, .02, .5), new THREE.MeshBasicMaterial({ color: 0xffd84a, transparent: true, opacity: .35, toneMapped: false })); glowL.position.set(BCX, .46, lz); board.add(glowL);
+function booth(lon) { const g = new THREE.Group(), [x, z] = xz(lon, 49.0);
+  const b = new THREE.Mesh(new THREE.BoxGeometry(.3, .26, .22), M(0xf4f1ea)); b.position.y = .43; const r = new THREE.Mesh(new THREE.BoxGeometry(.4, .05, .3), M(0xd9534f)); r.position.y = .58;
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(.6, .04, .04), M(0xffffff)); arm.position.set(.42, .5, 0); g.add(b, r, arm); g.position.set(x, 0, z); g.traverse(o => o.castShadow = true); board.add(g); return g; }
+const booths = [booth(-123.0636), booth(-122.7566)];
+
+// ---------- overlay ----------
+const ov = document.createElement('canvas'); ov.width = Wd; ov.height = Ht; document.body.appendChild(ov); const g = ov.getContext('2d');
+function txt(s, x, y, size, col, a = 1, align = 'center') { if (a <= .01) return; g.save(); g.globalAlpha = a; g.font = `700 ${size}px Barlow`; g.textAlign = align; g.lineJoin = 'round';
+  g.strokeStyle = 'rgba(20,14,36,.92)'; g.lineWidth = size * .16; g.strokeText(s, x, y); g.fillStyle = col; g.fillText(s, x, y); g.restore(); }
+function card(s, a) { if (a <= .01) return; g.save(); g.globalAlpha = a; g.font = '600 44px Barlow'; const w = g.measureText(s).width + 70, x = (Wd - w) / 2, y = Ht - 250;
+  g.fillStyle = 'rgba(250,246,238,.94)'; g.strokeStyle = '#2b2440'; g.lineWidth = 3; g.beginPath(); g.roundRect(x, y, w, 76, 14); g.fill(); g.stroke();
+  g.fillStyle = '#ffb84a'; g.fillRect(x + 20, y + 30, 16, 16); g.fillStyle = '#2b2440'; g.textAlign = 'left'; g.fillText(s, x + 50, y + 54); g.restore(); }
+const proj = (lon, lat, y = .6) => { const [x, z] = xz(lon, lat); const v = new THREE.Vector3(x, y, z).project(cam); return [(v.x + 1) / 2 * Wd, (1 - v.y) / 2 * Ht]; };
+const SUBS = [[0.2, 2.4, 'This town is in the United States,'], [2.4, 3.6, "but you can't drive there"], [3.6, 5.9, 'without leaving the United States.'], [5.8, 8.3, 'This is Point Roberts, Washington.'], [8.3, 10, 'About 13 square kilometres,']];
+
+// ---------- frame ----------
+const m4 = new THREE.Matrix4(), v3 = new THREE.Vector3();
+function frame(t) {
+  // camera: close on the tip, then a slow pull back and orbit to reveal the board
+  const u = eio(seg(t, 0, 9.5));
+  setCam(lerp(-4.2, 0.0, u), lerp(4.0, 1.0, u), lerp(9, 62, eio(seg(t, .3, 9.0))), lerp(-30, -42, u));
+  // blocks rise with a bounce, from Point Roberts outward
+  { const m = new THREE.Matrix4(); D.cells.forEach(([lo, la, cls, us, h], k) => { const p = back(seg(t, cellT[k] * .09, cellT[k] * .09 + .45), 2.2);
+      const [x, z] = xz(lo, la), hh = (.14 + Math.min(h, 80) / 80 * .25) * Math.max(p, .001); m.makeScale(1, hh, 1).setPosition(x, hh / 2, z); land.setMatrixAt(k, m); });
+    land.instanceMatrix.needsUpdate = true; }
+  const ap = clamp(seg(t, 1.0, 2.2)); kitParts.forEach(m => { m.visible = ap > 0; m.position.y = lerp(-.6, 0, back(ap, 2)); });
+  waves(t);
+  const li = eo(seg(t, .6, 2.2)); line.scale.x = glowL.scale.x = Math.max(li, .001); line.position.x = glowL.position.x = BCX + (1 - li) * BW / 2;
+  glowL.material.opacity = .35 + .2 * Math.sin(t * 4);
+  booths.forEach((b, i) => { const p = back(seg(t, 2.0 + i * .2, 2.5 + i * .2), 2.5); b.scale.setScalar(Math.max(p, .001)); });
+  renderer.render(scene, cam);
+
+  g.clearRect(0, 0, Wd, Ht);
+  const a1 = seg(t, 2.4, 2.7) * (1 - seg(t, 5.5, 5.9));
+  [['USA', '#ffd84a', -250], ['→', '#ffffff', -125], ['CANADA', '#ff8a7a', 0], ['→', '#ffffff', 125], ['USA', '#ffd84a', 250]].forEach(([s, c, dx], i) =>
+    txt(s, Wd / 2 + dx * 1.2, 300, 88, c, a1 * seg(t, 2.4 + i * .15, 2.65 + i * .15)));
+  { const [px, py] = proj(-123.06, 48.978, .7), a = seg(t, 5.9, 6.2);
+    if (a > 0) { g.save(); g.globalAlpha = a; g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.beginPath(); g.moveTo(px, py + 10); g.lineTo(px, py + 150); g.stroke();
+      g.fillStyle = '#ffd84a'; g.strokeStyle = '#1d1830'; g.lineWidth = 4; g.beginPath(); g.arc(px, py, 12, 0, 7); g.fill(); g.stroke(); g.restore(); }
+    txt('POINT ROBERTS', px, py + 210, 70, '#ffffff', a); txt('WASHINGTON, USA', px, py + 256, 38, '#ffd84a', seg(t, 6.1, 6.4)); }
+  const [cx, cy] = proj(-123.0, 49.06, .7); txt('CANADA', cx, cy, 54, '#ff8a7a', seg(t, 2.9, 3.3));
+  const [lx, ly] = proj(-122.86, 49.0, .7); txt('49TH PARALLEL', lx, ly - 24, 40, '#ffd84a', seg(t, 1.6, 2.0) * (1 - seg(t, 5.6, 6.0)));
+  const s = SUBS.find(c => t >= c[0] && t < c[1]); if (s) card(s[2], Math.min(seg(t, s[0], s[0] + .15), 1 - seg(t, s[1] - .12, s[1])));
+}
+await Promise.all([600, 700].map(w => document.fonts.load(`${w} 40px Barlow`)));
+window.DUR = 10; window.render = t => frame(t); window.render(0); window.READY = true;
+</script></body></html>

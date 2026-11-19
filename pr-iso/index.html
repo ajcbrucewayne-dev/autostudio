@@ -1,6 +1,6 @@
 <!doctype html>
 <html><head><meta charset="utf-8">
-<title>Point Roberts Diorama</title>
+<title>Point Roberts Diorama (full)</title>
 <script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
 <style>
 @font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-SemiBold.ttf);font-weight:600}
@@ -15,6 +15,8 @@ canvas{position:absolute;left:0;top:0}
 import * as THREE from 'three';
 import { clamp, lerp, seg, ss, eo, eio, back } from '/core/lib.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { track } from '/core/lib.js';
+import { HITS, ROUTE, XING } from './pr_timeline.js';
 const Wd = innerWidth, Ht = innerHeight, D2R = Math.PI / 180;
 const D = await fetch('assets/diorama.json').then(r => r.json());
 const [lon0b, lon1b, lat0b, lat1b] = D.box, LON0 = -123.0, LAT0 = 49.03, KX = 111.32 * Math.cos(49 * D2R), KZ = 111.32;
@@ -115,37 +117,82 @@ function card(s, a) { if (a <= .01) return; g.save(); g.globalAlpha = a; g.font 
   g.fillStyle = 'rgba(250,246,238,.94)'; g.strokeStyle = '#2b2440'; g.lineWidth = 3; g.beginPath(); g.roundRect(x, y, w, 76, 14); g.fill(); g.stroke();
   g.fillStyle = '#ffb84a'; g.fillRect(x + 20, y + 30, 16, 16); g.fillStyle = '#2b2440'; g.textAlign = 'left'; g.fillText(s, x + 50, y + 54); g.restore(); }
 const proj = (lon, lat, y = .6) => { const [x, z] = xz(lon, lat); const v = new THREE.Vector3(x, y, z).project(cam); return [(v.x + 1) / 2 * Wd, (1 - v.y) / 2 * Ht]; };
-const SUBS = [[0.2, 2.4, 'This town is in the United States,'], [2.4, 3.6, "but you can't drive there"], [3.6, 5.9, 'without leaving the United States.'], [5.8, 8.3, 'This is Point Roberts, Washington.'], [8.3, 10, 'About 13 square kilometres,']];
+
+// ---------- route (dark road with a dashed centre line), the truck / school bus ----------
+const RP = ROUTE.map(([lo, la]) => { const [x, z] = xz(lo, la); return new THREE.Vector3(x, .34, z); });
+const curve = new THREE.CatmullRomCurve3(RP, false, 'centripetal'), NR = 400, RPTS = curve.getSpacedPoints(NR);
+const road = (() => { const pos = [], idx = [], w = .34;
+  RPTS.forEach((p, i) => { const q = RPTS[Math.min(NR, i + 1)], r = RPTS[Math.max(0, i - 1)], d = new THREE.Vector3().subVectors(q, r).setY(0).normalize(), n = new THREE.Vector3(-d.z, 0, d.x);
+    pos.push(p.x + n.x * w, p.y, p.z + n.z * w, p.x - n.x * w, p.y, p.z - n.z * w); if (i) { const k = 2 * i; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); } });
+  const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g2.setIndex(idx); g2.computeVertexNormals();
+  const m = new THREE.Mesh(g2, M(0x2d2a3a, { side: THREE.DoubleSide })); m.receiveShadow = true; board.add(m); return m; })();
+const dashes = (() => { const n = 110, m = new THREE.InstancedMesh(new THREE.BoxGeometry(.26, .02, .07), new THREE.MeshBasicMaterial({ color: 0xfff6d0 }), n); const mm = new THREE.Matrix4(), q = new THREE.Quaternion();
+  for (let i = 0; i < n; i++) { const u = (i + .5) / n, p = curve.getPointAt(u), tn = curve.getTangentAt(u); q.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3(tn.x, 0, tn.z).normalize());
+    mm.compose(new THREE.Vector3(p.x, .36, p.z), q, new THREE.Vector3(1, 1, 1)); m.setMatrixAt(i, mm); } board.add(m); return m; })();
+const truck = await loadG(KIT + 'racing/vehicle-truck-yellow.glb'); truck.scale.setScalar(.55); truck.traverse(o => { if (o.isMesh) o.castShadow = true; }); board.add(truck);
+function placeTruck(u) { u = clamp(u, 0, 1); const p = curve.getPointAt(u), tn = curve.getTangentAt(u); truck.position.set(p.x, .36, p.z); truck.rotation.set(0, Math.atan2(tn.x, tn.z), 0); }
+const RED = M(0xff3b30, { emissive: 0xff2010, emissiveIntensity: .9 }), ROOF0 = booths[0].children[1].material, ARM0 = booths[0].children[2].material;
+// camera keys: [t, [cx, cz, size, yaw]]
+const PRx = xz(-123.06, 48.978), TY = xz(...XING.tyee);
+const CAMK = track([[0, [-4.2, 4.0, 9, -30]], [9.5, [0, 1, 62, -42]], [11.8, [-1, 2, 58, -44]], [18.8, [3, .5, 70, -56]], [20.2, [PRx[0], PRx[1] - 1, 13, -50]],
+  [26.0, [PRx[0] + 1, PRx[1] - 1.5, 15, -44]], [28.0, [6.5, -.6, 34, -40]], [33.4, [7.5, -.3, 35, -36]], [39.4, [7, 0, 36, -32]], [41.2, [TY[0], TY[1] + .4, 6.5, -30]],
+  [45.6, [TY[0], TY[1] + .4, 5.6, -36]], [48.0, [1, 1, 56, -45]], [54, [1, 1, 68, -52]]]);
+const SUBS = (await fetch('out/cues.json').then(r => r.json())).map(c => [c.t0, c.t1, c.text]);
+const busU = t => { const k = seg(t, HITS.bus, 39.2), loop = (k * 2) % 2; return loop < 1 ? ss(loop) : 1 - ss(loop - 1); };
+function pin(lon, lat, title, sub, a, below = true) { const [px, py] = proj(lon, lat, .7); if (a <= 0) return;
+  g.save(); g.globalAlpha = a; g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.beginPath(); g.moveTo(px, py + (below ? 10 : -10)); g.lineTo(px, py + (below ? 150 : -150)); g.stroke();
+  g.fillStyle = '#ffd84a'; g.strokeStyle = '#1d1830'; g.lineWidth = 4; g.beginPath(); g.arc(px, py, 12, 0, 7); g.fill(); g.stroke(); g.restore();
+  const y = below ? py + 210 : py - 196; txt(title, px, y, 64, '#ffffff', a); if (sub) txt(sub, px, y + 46, 36, '#ffd84a', a); }
+const env = (t, a, b, fi = .3, fo = .3) => Math.min(seg(t, a, a + fi), 1 - seg(t, b - fo, b));
 
 // ---------- frame ----------
-const m4 = new THREE.Matrix4(), v3 = new THREE.Vector3();
 function frame(t) {
-  // camera: close on the tip, then a slow pull back and orbit to reveal the board
-  const u = eio(seg(t, 0, 9.5));
-  setCam(lerp(-4.2, 0.0, u), lerp(4.0, 1.0, u), lerp(9, 62, eio(seg(t, .3, 9.0))), lerp(-30, -42, u));
-  // blocks rise with a bounce, from Point Roberts outward
+  const c = CAMK(t); setCam(c[0], c[1], c[2], c[3]);
   { const m = new THREE.Matrix4(); D.cells.forEach(([lo, la, cls, us, h], k) => { const p = back(seg(t, cellT[k] * .09, cellT[k] * .09 + .45), 2.2);
       const [x, z] = xz(lo, la), hh = (.14 + Math.min(h, 80) / 80 * .25) * Math.max(p, .001); m.makeScale(1, hh, 1).setPosition(x, hh / 2, z); land.setMatrixAt(k, m); });
     land.instanceMatrix.needsUpdate = true; }
   const ap = clamp(seg(t, 1.0, 2.2)); kitParts.forEach(m => { m.visible = ap > 0; m.position.y = lerp(-.6, 0, back(ap, 2)); });
   waves(t);
   const li = eo(seg(t, .6, 2.2)); line.scale.x = glowL.scale.x = Math.max(li, .001); line.position.x = glowL.position.x = BCX + (1 - li) * BW / 2;
-  glowL.material.opacity = .35 + .2 * Math.sin(t * 4);
+  const flash = Math.max(Math.sin(Math.PI * seg(t, HITS.par49 - .2, HITS.par49 + .8)), Math.sin(Math.PI * seg(t, HITS.sliced - .1, HITS.sliced + .8)));
+  glowL.material.opacity = .35 + .2 * Math.sin(t * 4) + .45 * flash; line.material.color.setHex(0xffd84a).multiplyScalar(2.2 + 2.5 * flash);
   booths.forEach((b, i) => { const p = back(seg(t, 2.0 + i * .2, 2.5 + i * .2), 2.5); b.scale.setScalar(Math.max(p, .001)); });
+  // 2020: the Point Roberts gate drops and turns red
+  const shut = seg(t, HITS.y2020, HITS.y2020 + .3) > .5 && t < 47.5; booths[0].children[1].material = shut ? RED : ROOF0; booths[0].children[2].material = shut ? RED : ARM0;
+  // the road draws itself, then the truck drives it; then the school bus goes there and back
+  const rv = seg(t, HITS.drive, HITS.cross2 + .2); road.geometry.setDrawRange(0, Math.floor(rv * NR) * 6); dashes.count = Math.floor(rv * 110);
+  road.visible = t > HITS.drive - .05 && t < 39.8; dashes.visible = road.visible;
+  truck.visible = t > HITS.drive && t < 39.6; if (truck.visible) placeTruck(t < HITS.bus ? eio(seg(t, HITS.drive + .3, HITS.cross2 + .4)) : busU(t));
   renderer.render(scene, cam);
 
   g.clearRect(0, 0, Wd, Ht);
+  const top = 300;
   const a1 = seg(t, 2.4, 2.7) * (1 - seg(t, 5.5, 5.9));
-  [['USA', '#ffd84a', -250], ['→', '#ffffff', -125], ['CANADA', '#ff8a7a', 0], ['→', '#ffffff', 125], ['USA', '#ffd84a', 250]].forEach(([s, c, dx], i) =>
-    txt(s, Wd / 2 + dx * 1.2, 300, 88, c, a1 * seg(t, 2.4 + i * .15, 2.65 + i * .15)));
-  { const [px, py] = proj(-123.06, 48.978, .7), a = seg(t, 5.9, 6.2);
-    if (a > 0) { g.save(); g.globalAlpha = a; g.strokeStyle = '#ffffff'; g.lineWidth = 4; g.beginPath(); g.moveTo(px, py + 10); g.lineTo(px, py + 150); g.stroke();
-      g.fillStyle = '#ffd84a'; g.strokeStyle = '#1d1830'; g.lineWidth = 4; g.beginPath(); g.arc(px, py, 12, 0, 7); g.fill(); g.stroke(); g.restore(); }
-    txt('POINT ROBERTS', px, py + 210, 70, '#ffffff', a); txt('WASHINGTON, USA', px, py + 256, 38, '#ffd84a', seg(t, 6.1, 6.4)); }
-  const [cx, cy] = proj(-123.0, 49.06, .7); txt('CANADA', cx, cy, 54, '#ff8a7a', seg(t, 2.9, 3.3));
-  const [lx, ly] = proj(-122.86, 49.0, .7); txt('49TH PARALLEL', lx, ly - 24, 40, '#ffd84a', seg(t, 1.6, 2.0) * (1 - seg(t, 5.6, 6.0)));
-  const s = SUBS.find(c => t >= c[0] && t < c[1]); if (s) card(s[2], Math.min(seg(t, s[0], s[0] + .15), 1 - seg(t, s[1] - .12, s[1])));
+  [['USA', '#ffd84a', -250], ['→', '#ffffff', -125], ['CANADA', '#ff8a7a', 0], ['→', '#ffffff', 125], ['USA', '#ffd84a', 250]].forEach(([s2, c2, dx], i) =>
+    txt(s2, Wd / 2 + dx * 1.2, top, 88, c2, a1 * seg(t, 2.4 + i * .15, 2.65 + i * .15)));
+  pin(-123.06, 48.978, 'POINT ROBERTS', 'WASHINGTON, USA', env(t, 5.9, 11.8, .3, .4));
+  txt('12.7 KM²', Wd / 2 - 220, top, 92, '#ffffff', env(t, HITS.area - .2, 11.8)); txt('LAND AREA', Wd / 2 - 220, top + 44, 34, '#ffd84a', env(t, HITS.area - .2, 11.8));
+  txt('1,191', Wd / 2 + 220, top, 92, '#ffffff', env(t, HITS.pop - .2, 11.8)); txt('PEOPLE (2020)', Wd / 2 + 220, top + 44, 34, '#ffd84a', env(t, HITS.pop - .2, 11.8));
+  { const [cx, cy] = proj(-123.0, 49.08, .7); txt('CANADA', cx, cy, 54, '#ff8a7a', env(t, 2.9, 19.0, .4, .4)); }
+  { const [lx, ly] = proj(-122.86, 49.0, .7); txt('49TH PARALLEL', lx, ly - 24, 40, '#ffd84a', Math.max(env(t, 1.6, 5.9), env(t, HITS.par49 - .3, 19.0))); }
+  txt('1846', Wd / 2, top, 120, '#ffffff', env(t, HITS.y1846 - .1, 19.0)); txt('OREGON TREATY · A STRAIGHT LINE', Wd / 2, top + 56, 38, '#ffd84a', env(t, HITS.y1846 + .3, 19.0));
+  { const [x1, y1] = proj(-122.8, 49.1, .7), [x2, y2] = proj(-122.8, 48.93, .7), a = env(t, HITS.par49, 19.0);
+    txt('BRITISH (NOW CANADA)', x1, y1, 40, '#ff8a7a', a); txt('AMERICAN', x2, y2, 40, '#7fb2ff', a); }
+  pin(-123.06, 48.975, 'AMERICAN SIDE', null, env(t, HITS.side - .2, 26.2, .3, .4));
+  { const a = env(t, HITS.drive, 33.4, .3, .4), [mx, my] = proj(-122.9, 49.1, .7); txt('≈40 KM THROUGH CANADA', mx, my - 40, 46, '#ffffff', a * seg(t, HITS.drive + 1.2, HITS.drive + 1.5));
+    [[XING.tyee, HITS.drive + .15], [XING.peace, HITS.cross2]].forEach(([p, tt]) => { const [x, y] = proj(p[0], p[1], .9), ai = env(t, tt - .1, 39.8, .2, .5); txt('BORDER', x, y - 40, 34, '#ffd84a', ai); }); }
+  { const n = Math.min(4, Math.floor(seg(t, HITS.four - .2, HITS.four + 1.1) * 4.999)), a = env(t, HITS.four - .3, 39.8, .3, .4);
+    txt(String(n), Wd / 2, top + 10, 150, '#ffd84a', a); txt('BORDER CROSSINGS A DAY', Wd / 2, top + 64, 38, '#ffffff', a);
+    if (truck.visible && t > HITS.bus) { const v = truck.position.clone().setY(.9).project(cam); txt('SCHOOL BUS', (v.x + 1) / 2 * Wd, (1 - v.y) / 2 * Ht - 30, 34, '#ffd84a', env(t, HITS.bus, 39.4)); } }
+  { const a = env(t, HITS.y2020 - .1, 46.0, .3, .4), [x, y] = proj(...XING.tyee, .9);
+    txt('2020', Wd / 2, top, 120, '#ffffff', a); txt('CUT OFF BY LAND · 1.5+ YEARS', Wd / 2, top + 56, 38, '#ff8a7a', env(t, HITS.cutoff - .1, 46.0));
+    if (a > 0) { const k = eo(seg(t, HITS.y2020, HITS.y2020 + .3)), r = 54 * k; g.save(); g.globalAlpha = a; g.strokeStyle = '#ff3b30'; g.lineWidth = 14; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(x - r, y - 90 - r); g.lineTo(x + r, y - 90 + r); g.moveTo(x + r, y - 90 - r); g.lineTo(x - r, y - 90 + r); g.stroke(); g.restore(); txt('BORDER CLOSED', x, y - 180, 50, '#ff8a7a', a); } }
+  { const a = seg(t, HITS.ask + 1.0, HITS.ask + 1.5); txt('THE TOWN', Wd / 2, top - 20, 104, '#ffffff', a); txt("YOU CAN'T DRIVE TO", Wd / 2, top + 76, 86, '#ffd84a', seg(t, HITS.ask + 1.4, HITS.ask + 1.9)); }
+  const s2 = SUBS.find(c2 => t >= c2[0] - .05 && t < c2[1]); if (s2) card(s2[2], Math.min(seg(t, s2[0] - .05, s2[0] + .12), 1 - seg(t, s2[1] - .12, s2[1])));
+  g.save(); g.font = '600 20px Barlow'; g.fillStyle = 'rgba(255,255,255,.75)'; g.textAlign = 'center';
+  g.fillText('Map: Sentinel-2 cloudless 2016 by EOX (CC BY 4.0) · AWS Terrain Tiles · 3D models: Kenney (MIT) · Route schematic · Not to scale', Wd / 2, Ht - 34); g.restore();
 }
 await Promise.all([600, 700].map(w => document.fonts.load(`${w} 40px Barlow`)));
-window.DUR = 10; window.render = t => frame(t); window.render(0); window.READY = true;
+window.DUR = 54; window.render = t => frame(t); window.render(0); window.READY = true;
 </script></body></html>
