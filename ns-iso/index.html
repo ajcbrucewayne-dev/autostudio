@@ -1,0 +1,162 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>North Sentinel Diorama</title>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<style>
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-SemiBold.ttf);font-weight:600}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+html,body{margin:0;background:#1d1830;overflow:hidden}
+canvas{position:absolute;left:0;top:0}
+</style></head>
+<body>
+<script type="module">
+// North Sentinel Island as an isometric toy diorama: real coastline, beaches and reef (Sentinel-2) as blocks, Kenney jungle,
+// faceted cartoon sea, a glowing no-go ring. The Sentinelese are never drawn: only their island, the outsiders and the arrows.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clamp, lerp, seg, ss, eo, eio, back, track } from '/core/lib.js';
+const Wd = innerWidth, Ht = innerHeight, D2R = Math.PI / 180, Q = new URLSearchParams(location.search);
+const T0 = +(Q.get('t0') || 0), T1 = Q.has('t1') ? +Q.get('t1') : null;
+const [D, CUES, ST] = await Promise.all(['assets/diorama.json', 'out/cues.json', 'out/starts.json'].map(u => fetch(u).then(r => r.json())));
+const [lon0b, lon1b, lat0b, lat1b] = D.box, [LON0, LAT0] = D.centre, KX = 111.32 * Math.cos(11.55 * D2R), KZ = 111.32;
+const xz = (lon, lat) => [(lon - LON0) * KX, -(lat - LAT0) * KZ];
+const CW = .0025 * KX, CH = .0025 * KZ, DUR = 51.5;
+const W = (k, f = 0) => ST[k] + f;                                     // line start + offset (s)
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1.5); renderer.setSize(Wd, Ht); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+{ const c = document.createElement('canvas'); c.width = 512; c.height = 1024; const q = c.getContext('2d');
+  const gr = q.createRadialGradient(256, 430, 40, 256, 470, 700); gr.addColorStop(0, '#2f6a7a'); gr.addColorStop(.45, '#1e3550'); gr.addColorStop(1, '#0e1424');
+  q.fillStyle = gr; q.fillRect(0, 0, 512, 1024); let s = 3; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 220; i++) { q.globalAlpha = .12 + .45 * rnd(); q.fillStyle = '#ffffff'; q.beginPath(); q.arc(rnd() * 512, rnd() * 1024, rnd() * 1.4 + .3, 0, 7); q.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; scene.background = t; }
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, -500, 500);
+function setCam(cx, cz, size, yaw, pitch = 35.264) {
+  const asp = Wd / Ht; cam.left = -size * asp / 2; cam.right = size * asp / 2; cam.top = size / 2; cam.bottom = -size / 2; cam.updateProjectionMatrix();
+  const y = yaw * D2R, p = pitch * D2R, r = 200; cam.position.set(cx + r * Math.cos(p) * Math.sin(y), r * Math.sin(p), cz + r * Math.cos(p) * Math.cos(y)); cam.lookAt(cx, 0, cz); cam.updateMatrixWorld();
+}
+const sun = new THREE.DirectionalLight(0xfff0dc, 2.7); sun.position.set(-40, 70, 30); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -25, right: 25, top: 25, bottom: -25, near: 1, far: 300 }); sun.shadow.bias = -.0008;
+scene.add(sun, new THREE.HemisphereLight(0xc8e8ff, 0x2a3a40, 1.15));
+const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .85, metalness: 0, flatShading: true, ...o });
+
+// the floating board
+const [bx0, bz0] = xz(lon0b, lat1b), [bx1, bz1] = xz(lon1b, lat0b), BW = bx1 - bx0, BD = bz1 - bz0, BCX = (bx0 + bx1) / 2, BCZ = (bz0 + bz1) / 2;
+const board = new THREE.Group(); scene.add(board);
+{ const base = new THREE.Mesh(new THREE.BoxGeometry(BW + .6, 2.2, BD + .6), [M(0xe9dcc6), M(0xe9dcc6), M(0xf3ead8), M(0x2b2440), M(0xd8c6a8), M(0xd8c6a8)]);
+  base.position.set(BCX, -1.25, BCZ); base.receiveShadow = true; board.add(base);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(BW + .62, .5, BD + .62), M(0x2f8fb0)); band.position.set(BCX, -.38, BCZ); board.add(band); }
+// cartoon sea (faceted, vertex-coloured crests), translucent over the reef
+const SEA = new THREE.PlaneGeometry(BW, BD, 70, 56); SEA.rotateX(-Math.PI / 2); const seaBase = SEA.attributes.position.array.slice();
+SEA.setAttribute('color', new THREE.BufferAttribute(new Float32Array(SEA.attributes.position.count * 3), 3));
+const sea = new THREE.Mesh(SEA, M(0xffffff, { roughness: .3, vertexColors: true, transparent: true, opacity: .82 })); sea.position.set(BCX, -.02, BCZ); sea.receiveShadow = true; board.add(sea);
+function waves(t) { const p = SEA.attributes.position.array, cA = SEA.attributes.color.array, deep = new THREE.Color(0x1f7fb0), crest = new THREE.Color(0xc8f4f6), c = new THREE.Color();
+  for (let i = 0; i < p.length; i += 3) { const x = seaBase[i], z = seaBase[i + 2];
+    const h = .09 * Math.sin(x * 1.1 + t * 1.6) + .07 * Math.sin(z * 1.3 - t * 1.2) + .04 * Math.sin((x + z) * 2.4 + t * 2.3); p[i + 1] = h;
+    c.copy(deep).lerp(crest, clamp((h - .17) / .05) * .45); cA[i] = c.r; cA[i + 1] = c.g; cA[i + 2] = c.b; }
+  SEA.attributes.position.needsUpdate = true; SEA.attributes.color.needsUpdate = true; SEA.computeVertexNormals(); }
+// island blocks: jungle, beach, reef
+const COLS = { jungle: 0x4f9a52, beach: 0xf2dc9b, reef: 0x6fd6d0 };
+const land = new THREE.InstancedMesh(new THREE.BoxGeometry(CW * 1.001, 1, CH * 1.001), M(0xffffff), D.cells.length); land.castShadow = land.receiveShadow = true; board.add(land);
+const cellH = D.cells.map(([lo, la, cls, h]) => cls === 'reef' ? .06 : cls === 'beach' ? .2 : .26 + Math.min(h, 120) / 120 * .5);
+const cellT = D.cells.map(([lo, la]) => Math.hypot(lo - LON0, (la - LAT0)) * 60);
+{ const col = new THREE.Color(); D.cells.forEach(([lo, la, cls], k) => land.setColorAt(k, col.setHex(COLS[cls]))); }
+const gl = new GLTFLoader(); const loadG = u => new Promise((r, e) => gl.load(u, x => r(x.scene), undefined, e)); const KIT = 'assets/kits/';
+const [tr1, tr2, forest] = await Promise.all(['city-builder/grass-trees.glb', 'city-builder/grass-trees-tall.glb', 'racing/decoration-forest.glb'].map(f => loadG(KIT + f)));
+function instancer(model, n) { model.updateMatrixWorld(true); const parts = [];
+  model.traverse(o => { if (o.isMesh) { const m = new THREE.InstancedMesh(o.geometry, o.material, Math.max(1, n)); m.count = n; m.castShadow = true; m.receiveShadow = true; m.userData.local = o.matrixWorld.clone(); board.add(m); parts.push(m); } });
+  const tmp = new THREE.Matrix4(); return { parts, set(k, mat) { for (const p of parts) p.setMatrixAt(k, tmp.multiplyMatrices(mat, p.userData.local)); }, done() { parts.forEach(p => p.instanceMatrix.needsUpdate = true); } }; }
+const TM = [forest, tr2, tr1], tsets = TM.map((m, i) => instancer(m, D.trees.filter(t => t[3] === i).length));
+{ const cnt = [0, 0, 0], m = new THREE.Matrix4(), q = new THREE.Quaternion();
+  D.trees.forEach(([lo, la, s, ty], k) => { const [x, z] = xz(lo, la), sc = (ty === 0 ? .07 : .12) * s; q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (k % 4) * Math.PI / 2);
+    m.compose(new THREE.Vector3(x, .5, z), q, new THREE.Vector3(sc, sc, sc)); tsets[ty].set(cnt[ty]++, m); }); tsets.forEach(t => t.done()); }
+const kitParts = tsets.flatMap(t => t.parts);
+// the no-go ring (glowing dashes) around the island
+const RR = 7.2, ring = new THREE.InstancedMesh(new THREE.BoxGeometry(.7, .06, .14), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff5a4a).multiplyScalar(2.2), toneMapped: false }), 60);
+{ const m = new THREE.Matrix4(), q = new THREE.Quaternion(); for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2; q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a + Math.PI / 2);
+    m.compose(new THREE.Vector3(Math.cos(a) * RR, .15, Math.sin(a) * RR), q, new THREE.Vector3(1, 1, 1)); ring.setMatrixAt(i, m); } } board.add(ring);
+const ringGlow = new THREE.Mesh(new THREE.RingGeometry(RR - .25, RR + .25, 96), new THREE.MeshBasicMaterial({ color: 0xff5a4a, transparent: true, opacity: .25, side: THREE.DoubleSide, toneMapped: false }));
+ringGlow.rotation.x = -Math.PI / 2; ringGlow.position.y = .12; board.add(ringGlow);
+// props: an 1880 sailing ship, a helicopter, a coast-guard boat
+function ship() { const g = new THREE.Group(); const hull = new THREE.Mesh(new THREE.BoxGeometry(1.4, .3, .45), M(0x6b4a33)); hull.position.y = .25;
+  const mast = new THREE.Mesh(new THREE.BoxGeometry(.06, 1.4, .06), M(0x4a3426)); mast.position.y = 1.0; const sail = new THREE.Mesh(new THREE.BoxGeometry(.04, .8, .8), M(0xf4efe2)); sail.position.y = 1.05;
+  const sail2 = sail.clone(); sail2.position.set(-.45, .9, 0); sail2.scale.setScalar(.75); g.add(hull, mast, sail, sail2); g.traverse(o => o.castShadow = true); board.add(g); return g; }
+function heli() { const g = new THREE.Group(); const body = new THREE.Mesh(new THREE.BoxGeometry(.9, .4, .4), M(0xf2f2ee)); const tail = new THREE.Mesh(new THREE.BoxGeometry(.9, .1, .1), M(0xf2f2ee)); tail.position.x = -.8;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(.92, .1, .42), M(0xff7a2a)); const rotor = new THREE.Mesh(new THREE.BoxGeometry(2.0, .03, .1), M(0x333344)); rotor.position.y = .3;
+  g.add(body, tail, stripe, rotor); g.userData.rotor = rotor; g.traverse(o => o.castShadow = true); board.add(g); return g; }
+function boat() { const g = new THREE.Group(); const hull = new THREE.Mesh(new THREE.BoxGeometry(1.2, .25, .45), M(0xf4f4f0)); hull.position.y = .2;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.22, .08, .47), M(0xff6a3a)); stripe.position.y = .24; const cab = new THREE.Mesh(new THREE.BoxGeometry(.45, .3, .35), M(0x2b4a7a)); cab.position.set(-.1, .45, 0);
+  g.add(hull, stripe, cab); g.traverse(o => o.castShadow = true); board.add(g); return g; }
+const SHIP = ship(), HELI = heli(), BOAT = boat(); SHIP.scale.setScalar(1.7); HELI.scale.setScalar(1.4); BOAT.scale.setScalar(1.8);
+const arrows = new THREE.InstancedMesh(new THREE.BoxGeometry(.8, .05, .05), new THREE.MeshBasicMaterial({ color: 0xfff1c0, toneMapped: false }), 10); board.add(arrows);
+
+// ---------- overlay ----------
+const ov = document.createElement('canvas'); ov.width = Wd; ov.height = Ht; document.body.appendChild(ov); const g = ov.getContext('2d');
+function txt(s, x, y, size, col, a = 1, align = 'center') { if (a <= .01) return; g.save(); g.globalAlpha = a; g.font = `700 ${size}px Barlow`; g.textAlign = align; g.lineJoin = 'round';
+  g.strokeStyle = 'rgba(14,20,36,.92)'; g.lineWidth = size * .16; g.strokeText(s, x, y); g.fillStyle = col; g.fillText(s, x, y); g.restore(); }
+function card(s, a) { if (a <= .01) return; g.save(); g.globalAlpha = a; g.font = '600 44px Barlow'; const w = g.measureText(s).width + 70, x = (Wd - w) / 2, y = Ht - 250;
+  g.fillStyle = 'rgba(250,246,238,.94)'; g.strokeStyle = '#1e2a3a'; g.lineWidth = 3; g.beginPath(); g.roundRect(x, y, w, 76, 14); g.fill(); g.stroke();
+  g.fillStyle = '#ff5a4a'; g.fillRect(x + 20, y + 30, 16, 16); g.fillStyle = '#1e2a3a'; g.textAlign = 'left'; g.fillText(s, x + 50, y + 54); g.restore(); }
+const proj = (x, z, y = .6) => { const v = new THREE.Vector3(x, y, z).project(cam); return [(v.x + 1) / 2 * Wd, (1 - v.y) / 2 * Ht]; };
+const env = (t, a, b, fi = .3, fo = .3) => Math.min(seg(t, a, a + fi), 1 - seg(t, b - fo, b));
+const INDIA = await fetch('assets/india.json').then(r => r.json());
+function locator(a) {   // small card: India with the Andaman Islands marked
+  if (a <= .01) return; const x0 = Wd - 330, y0 = 470, w = 270, h = 300; g.save(); g.globalAlpha = a; g.fillStyle = 'rgba(250,246,238,.92)'; g.strokeStyle = '#1e2a3a'; g.lineWidth = 3;
+  g.beginPath(); g.roundRect(x0, y0, w, h, 14); g.fill(); g.stroke(); const px = lo => x0 + 20 + (lo - 66) / (98 - 66) * (w - 40), py = la => y0 + 20 + (37 - la) / (37 - 5) * (h - 60);
+  g.fillStyle = '#c9b48a'; g.strokeStyle = '#5a4a3a'; g.lineWidth = 1.5;
+  for (const r of INDIA) { g.beginPath(); r.forEach(([lo, la], i) => i ? g.lineTo(px(lo), py(la)) : g.moveTo(px(lo), py(la))); g.closePath(); g.fill(); g.stroke(); }
+  g.fillStyle = '#ff5a4a'; g.beginPath(); g.arc(px(92.24), py(11.56), 8, 0, 7); g.fill(); g.fillStyle = '#1e2a3a'; g.font = '700 24px Barlow'; g.textAlign = 'center'; g.fillText('INDIA', px(79), py(21)); g.restore(); }
+
+// camera keys [t, [cx, cz, size, yaw]]
+const CAMK = track([[0, [0, 0, 13, -30]], [6.4, [0, 0, 20, -40]], [13.2, [0, 0, 21, -48]], [20.4, [0, 0, 20, -55]], [21.5, [-4, 2, 22, -60]], [26.6, [-2, 1, 24, -64]],
+  [27.5, [0, -1, 16, -60]], [33.4, [0, -1, 17, -55]], [34.5, [2, 2, 30, -50]], [40.2, [2, 2, 32, -45]], [45.2, [0, 0, 22, -40]], [DUR, [0, 0, 36, -30]]]);
+
+function frame(t) {
+  const c = CAMK(t); setCam(c[0], c[1], c[2], c[3]);
+  { const m = new THREE.Matrix4(); D.cells.forEach(([lo, la], k) => { const p = back(seg(t, cellT[k] * .06, cellT[k] * .06 + .45), 2.2), [x, z] = xz(lo, la), hh = cellH[k] * Math.max(p, .001);
+      m.makeScale(1, hh, 1).setPosition(x, hh / 2, z); land.setMatrixAt(k, m); }); land.instanceMatrix.needsUpdate = true; }
+  const ap = clamp(seg(t, .8, 2.0)); kitParts.forEach(m => { m.visible = ap > 0; m.position.y = lerp(-.8, 0, back(ap, 2)); });
+  waves(t);
+  const ri = Math.max(env(t, 1.6, 6.6, .6, .5), env(t, W('l06', 1.5), DUR + 1, .6, .1)); ring.visible = ringGlow.visible = ri > .01;
+  ring.scale.setScalar(Math.max(.001, ri)); ringGlow.material.opacity = .25 * ri + .15 * ri * Math.sin(t * 4);
+  // 1880: a sailing ship arrives, waits, and leaves
+  const sa = seg(t, W('l04'), W('l04', 2.4)), sl = seg(t, W('l04', 3.0), W('l04', 5.6)); SHIP.visible = t > W('l04') - .1 && t < W('l05');
+  SHIP.position.set(lerp(-14, -6.2, eo(sa)) - lerp(0, 9, ei(sl)), 0, lerp(6, 3.2, eo(sa)) + lerp(0, 4, ei(sl))); SHIP.rotation.y = .45 + Math.PI * (sl > 0 ? 1 : 0) * clamp(sl * 3);
+  // 2004: a helicopter circles in, arrows rise from the treeline
+  const hv = t > W('l05', 2.0) && t < W('l06'); HELI.visible = hv; if (hv) { const u = seg(t, W('l05', 2.0), W('l06')), an = lerp(2.4, 4.4, u);
+    HELI.position.set(Math.cos(an) * 4.2, 2.6 + .2 * Math.sin(t * 3), Math.sin(an) * 4.2); HELI.rotation.y = -an; HELI.userData.rotor.rotation.y = t * 40; }
+  { const m = new THREE.Matrix4(), q = new THREE.Quaternion(); let n = 0; const ta = W('l05', 3.6);
+    if (t > ta && t < W('l06')) for (let i = 0; i < 8; i++) { const u = (t - ta - i * .25) / .9; if (u < 0 || u > 1) continue;
+      const sx = HELI.position.x * .35 + (i % 3 - 1) * .5, sz = HELI.position.z * .35 + (i % 2) * .4, p = new THREE.Vector3(lerp(sx, HELI.position.x - .3 + i * .05, u), .6 + 2.2 * u - .8 * u * u, lerp(sz, HELI.position.z, u));
+      q.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3(HELI.position.x - sx, 2.0, HELI.position.z - sz).normalize()); m.compose(p, q, new THREE.Vector3(1, 1, 1)); arrows.setMatrixAt(n++, m); }
+    arrows.count = n; arrows.instanceMatrix.needsUpdate = true; }
+  // the protected reserve: a coast-guard boat comes in and stops at the ring
+  const bt = seg(t, W('l06', 1.0), W('l06', 4.0)); BOAT.visible = t > W('l06', .8) && t < W('l07', 3); const ba = 0.6;
+  const rad = lerp(13, RR + .9, eo(bt)); BOAT.position.set(Math.cos(ba) * rad, .02 * Math.sin(t * 3), Math.sin(ba) * rad); BOAT.rotation.y = -ba + Math.PI;
+  renderer.render(scene, cam);
+
+  g.clearRect(0, 0, Wd, Ht);
+  const top = 300, ta = env(t, .3, 6.3, .3, .4);
+  txt('THE ISLAND', Wd / 2, top - 40, 92, '#ffffff', ta); txt('NOBODY MAY VISIT', Wd / 2, top + 56, 92, '#ff6a5a', env(t, .6, 6.3, .3, .4));
+  { const [x, y] = proj(RR * .72, -RR * .72, .3); txt('NO-GO ZONE', x, y - 20, 44, '#ff8a7a', Math.max(env(t, 2.0, 6.5, .3, .4), env(t, W('l06', 2.0), DUR + 1, .3, .1))); }
+  { const a = env(t, W('l02', .1), W('l03', .5), .3, .4); txt('NORTH SENTINEL', Wd / 2, top - 40, 88, '#ffffff', a); txt('ISLAND · INDIA', Wd / 2, top + 40, 52, '#ffd84a', a);
+    locator(env(t, W('l02', 1.6), W('l03', .5), .3, .4)); txt('≈60 KM²', Wd / 2, top + 130, 74, '#ffffff', env(t, W('l02', 4.4), W('l03', .5), .3, .4)); }
+  { const a = env(t, W('l03', .2), W('l04'), .3, .4); txt('THE SENTINELESE', Wd / 2, top - 30, 84, '#ffffff', a); txt('UNCONTACTED', Wd / 2, top + 50, 58, '#ffd84a', env(t, W('l03', 1.6), W('l04'), .3, .4));
+    txt('POPULATION: UNKNOWN', Wd / 2, top + 130, 52, '#ffffff', env(t, W('l03', 4.6), W('l04'), .3, .4)); }
+  { const a = env(t, W('l04', .1), W('l05'), .3, .4); txt('1880', Wd / 2, top - 20, 120, '#ffffff', a); txt('TAKEN BY BRITISH OFFICERS', Wd / 2, top + 50, 48, '#ffd84a', a);
+    txt('TWO FELL SICK AND DIED', Wd / 2, top + 120, 48, '#ff8a7a', env(t, W('l04', 3.8), W('l05'), .3, .4)); }
+  { const a = env(t, W('l05', .1), W('l06'), .3, .4); txt('ARROWS FOR OUTSIDERS', Wd / 2, top - 20, 78, '#ffffff', a); txt('2004 · AFTER THE TSUNAMI', Wd / 2, top + 56, 52, '#ffd84a', env(t, W('l05', 3.2), W('l06'), .3, .4)); }
+  { const a = env(t, W('l06', .1), W('l07'), .3, .4); txt('PROTECTED RESERVE', Wd / 2, top - 20, 84, '#ffffff', a); txt('VISITING IS ILLEGAL', Wd / 2, top + 56, 56, '#ff6a5a', env(t, W('l06', 4.0), W('l07'), .3, .4)); }
+  { const a = env(t, W('l07', .1), W('l08'), .3, .4); txt('NO IMMUNITY', Wd / 2, top - 20, 96, '#ffffff', a); txt('A COMMON COLD COULD BE DEADLY', Wd / 2, top + 56, 50, '#ff8a7a', env(t, W('l07', 2.2), W('l08'), .3, .4)); }
+  { const a = seg(t, W('l08', .1), W('l08', .5)); txt('LEFT ALONE', Wd / 2, top - 20, 110, '#ffffff', a); txt('BY CHOICE', Wd / 2, top + 76, 80, '#ffd84a', seg(t, W('l08', .6), W('l08', 1.0))); }
+  const cu = CUES.find(q => t >= q.t0 - .05 && t < q.t1); if (cu) card(cu.text, Math.min(seg(t, cu.t0 - .05, cu.t0 + .12), 1 - seg(t, cu.t1 - .12, cu.t1)));
+  g.save(); g.font = '600 20px Barlow'; g.fillStyle = 'rgba(255,255,255,.75)'; g.textAlign = 'center';
+  g.fillText('Map: Sentinel-2 cloudless 2016 by EOX (CC BY 4.0) · AWS Terrain Tiles · 3D models: Kenney (MIT) · Not to scale · Ring distance indicative', Wd / 2, Ht - 34); g.restore();
+}
+function ei(x) { return Math.pow(clamp(x), 3); }
+await Promise.all([600, 700].map(w => document.fonts.load(`${w} 40px Barlow`)));
+window.DUR = T1 != null ? T1 - T0 : DUR; window.render = t => frame(t + T0); window.render(0); window.READY = true;
+</script></body></html>
