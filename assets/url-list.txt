@@ -5,3 +5,5 @@ assets/nightlights/BlackMarble_2016_3km.jpg|https://eoimages.gsfc.nasa.gov/image
 # Point Roberts film: EOX Sentinel-2 cloudless 2016 (CC BY 4.0), region z11 and detail z13
 tiles|assets/s2/pointroberts_r|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|11|-124.3|48.45|-121.9|49.65
 tiles|assets/s2/pointroberts_d|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|13|-123.32|48.9|-122.68|49.16
+# North Sentinel Island film: EOX Sentinel-2 cloudless 2016 (CC BY 4.0), z13 over the island and its reef
+tiles|assets/s2/northsentinel|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|13|92.08|11.44|92.36|11.66
