@@ -1,0 +1,50 @@
+[
+ {
+  "id": "l01",
+  "text": "Inside an Arctic mountain, there's a door built for the end of the world... and someone has already opened it.",
+  "voice": "bm_lewis",
+  "speed": 1.06
+ },
+ {
+  "id": "l02",
+  "text": "This is the Svalbard Global Seed Vault, on a Norwegian island about thirteen hundred kilometres from the North Pole.",
+  "voice": "bm_lewis",
+  "speed": 1.06
+ },
+ {
+  "id": "l03",
+  "text": "A tunnel runs more than a hundred metres into the mountain, to vaults kept at minus eighteen degrees.",
+  "voice": "bm_lewis",
+  "speed": 1.04
+ },
+ {
+  "id": "l04",
+  "text": "Inside are more than a million seed samples, from almost every country. Rice, wheat, beans. Backups of our food.",
+  "voice": "bm_lewis",
+  "speed": 1.04
+ },
+ {
+  "id": "l05",
+  "text": "If the power fails, the permafrost should keep them frozen. And it sits high above the rising sea.",
+  "voice": "bm_lewis",
+  "speed": 1.04
+ },
+ {
+  "id": "l06",
+  "text": "Then, in twenty fifteen, war in Syria cut scientists off from their seed bank in Aleppo.",
+  "voice": "bm_lewis",
+  "speed": 1.04
+ },
+ {
+  "id": "l07",
+  "text": "So for the first time, they withdrew seeds from the vault. They regrew them, and later sent fresh seeds back.",
+  "voice": "bm_lewis",
+  "speed": 1.04
+ },
+ {
+  "id": "l08",
+  "text": "A doomsday vault that's already been needed. What would you save inside?",
+  "voice": "bm_lewis",
+  "speed": 1.02
+ }
+]

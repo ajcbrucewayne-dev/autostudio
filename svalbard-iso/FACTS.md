@@ -1,0 +1,6 @@
+- Location: Platåberget, near Longyearbyen, Spitsbergen (Svalbard, Norway). Opened 2008. Longyearbyen is ~1,300 km from the North Pole.
+- Tunnel runs roughly 100–130 m into the mountain to three vault chambers; storage at −18 °C; permafrost acts as natural backup cooling.
+- Holds more than 1 million (≈1.3M as of 2024) seed samples, from almost every country.
+- Entrance ~130 m above sea level (terrain here samples ~150 m at the entrance cell).
+- 2015: ICARDA (displaced from Aleppo by the Syrian war) made the first-ever withdrawal; seeds regrown in Lebanon and Morocco and redeposited from 2017. Further withdrawals followed, so the script says "already been needed", not "used once".
+- 2017: meltwater entered the entrance tunnel; no seeds affected (not used in script).
