@@ -1,0 +1,112 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>North Sentinel 3D</title>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<style>
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Regular.ttf);font-weight:400}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Medium.ttf);font-weight:500}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-SemiBold.ttf);font-weight:600}
+@font-face{font-family:Barlow;src:url(fonts/BarlowCondensed-Bold.ttf);font-weight:700}
+html,body{margin:0;background:#0b1a2c;overflow:hidden}
+canvas{position:absolute;left:0;top:0}
+</style></head>
+<body>
+<script type="module">
+// North Sentinel Island in realistic 3D (Sentinel-2 on terrain). The Sentinelese are never shown: only the island, the outsiders' routes and the no-go ring.
+import { makeWorld, makeOverlay } from './engine.js';
+import { clamp, lerp, seg, eo, eio, track, env } from '/core/lib.js';
+const Q = new URLSearchParams(location.search), T0 = +(Q.get('t0') || 0), T1 = Q.has('t1') ? +Q.get('t1') : null;
+const [CUES, ST, INDIA] = await Promise.all(['out/cues.json', 'out/starts.json', 'india.json'].map(u => fetch(u).then(r => r.json())));
+const DUR = 51.5, W = (k, f = 0) => ST[k] + f;
+const Wo = await makeWorld({ sky: ['#173f6e', '#3f78ad', '#9cc0d8', '#d8e4ea'], haze: '#c4d6e2', sunCol: 0xffe6c4, ambCol: 0x86a2c0, sunK: 3.2, ambK: .9, exposure: 1.45, glowCol: 0xff3b2e, fogK: 3.2 });
+const { THREE, G, meta, geo, path, circle, ribbon, setCam, proj, projV, xz, Wd, Ht } = Wo;
+const O = makeOverlay(Wd, Ht), { g, txt, dot, leader, pin } = O;
+const IC = meta.island_centre, PB = [92.735, 11.665];         // island centre; Port Blair
+const C = { red: '#ff5a4a', red2: '#ff8a7a', amber: '#ffc36b', ice: '#e8f0f4', rule: '#f6eee0', teal: '#8fd6de' };
+
+// ---------- ribbons ----------
+const RR = 9;                                                                      // no-go ring radius (km), indicative
+const ring = circle(IC[0], IC[1], RR, { y: .03, col: 0xff4a3a, pxW: 5, k: 2, dash: .9, duty: .6, base: 1.3 });
+const ringGlow = circle(IC[0], IC[1], RR, { y: .03, col: 0xff4a3a, pxW: 22, k: 3, base: .35 });
+const route1880 = path([[PB[0] - .05, PB[1] - .02], [92.55, 11.55], [92.38, 11.52], [92.27, 11.535]], { y: .03, col: 0xf6eee0, pxW: 3.2, dash: .7, duty: .5, base: 1.2 });
+const routeBack = path([[92.27, 11.535], [92.4, 11.6], [92.56, 11.66], [PB[0] - .05, PB[1] - .01]], { y: .03, col: 0xffc36b, pxW: 3.2, dash: .7, duty: .5, base: 1.2 });
+const boat = path([[PB[0] - .05, PB[1] - .03], [92.55, 11.6], [IC[0] + (RR + .2) / Wo.KX, IC[1] + .005]], { y: .03, col: 0x8fd6de, pxW: 3.5, base: 1.3 });
+// helicopter orbit (2004) and arrows rising from the beach
+const HC = [92.205, 11.565];
+const heli = ribbon(Array.from({ length: 90 }, (_, i) => { const a = 1.2 + i / 89 * 3.2; const [X, Z] = xz(HC[0] - .004 + Math.cos(a) * .9 / Wo.KX, HC[1] + Math.sin(a) * .9 / Wo.KZ); return new THREE.Vector3(X, .32, Z); }),
+  { col: 0xffc36b, pxW: 3, k: 2, base: 1.1, dash: .12, duty: .6 });
+const BEACH = [[92.2145, 11.556], [92.2135, 11.561], [92.2148, 11.566], [92.2155, 11.551]];
+const arrows = Array.from({ length: 8 }, (_, i) => { const b = BEACH[i % 4], p0 = geo(b[0] + (i % 3) * .0006, b[1] + (i % 2) * .0008, .005), p1 = new THREE.Vector3(...xz(HC[0] + .002 * (i % 3 - 1), HC[1] + .003 * (i % 2)).flatMap((v, k) => k ? [.3, v] : [v]));
+  const pts = Array.from({ length: 20 }, (_, k) => { const u = k / 19; return new THREE.Vector3().lerpVectors(p0, p1, u).add(new THREE.Vector3(0, .18 * Math.sin(Math.PI * u), 0)); });
+  return ribbon(pts, { col: 0xffe2b0, pxW: 4, k: 2, base: 1.8 }); });
+
+// ---------- camera ----------
+const K = (t, lon, lat, d, tilt, head, dof = 0) => [t, [lon, lat, Math.log(d), tilt, head, dof]];
+const CAMK = track([
+  K(0, 92.226, 11.552, 9, 58, 24), K(6.2, 92.232, 11.555, 13, 52, 10),                         // hook: low over the west coast, pulling back
+  K(7.4, 92.47, 11.61, 128, 30, 72), K(13.2, 92.47, 11.61, 134, 28, 80),                                           // where it is: North Sentinel and South Andaman
+  K(14.4, IC[0], IC[1], 15, 52, -18, 0), K(20.3, IC[0], IC[1] + .004, 13, 54, -42),                          // the island
+  K(21.2, 92.47, 11.61, 128, 30, 80), K(26.6, 92.47, 11.61, 124, 32, 86),                                           // 1880: the route out and back
+  K(27.4, 92.212, 11.558, 4.8, 62, 70), K(33.4, 92.212, 11.56, 5.4, 60, 90),                       // 2004: the beach and the helicopter
+  K(34.4, IC[0] + .03, IC[1], 30, 46, 4), K(40.2, IC[0] + .03, IC[1], 32, 44, 10),                             // the reserve: the ring, a boat stops
+  K(41.2, IC[0], IC[1], 16, 50, -10), K(45.4, IC[0], IC[1], 15, 52, -26),                                  // no immunity: close, quiet
+  K(46.6, IC[0], IC[1], 26, 46, -12), K(DUR, IC[0] + .01, IC[1], 34, 42, 0)]);                                // the question: crane out
+const CAM = t => { const c = CAMK(t); return { lon: c[0], lat: c[1], d: Math.exp(c[2]), tilt: c[3], head: c[4], dof: c[5] }; };
+
+function india(a) {
+  if (a <= .01) return; const x0 = Wd - 300, y0 = 520, w = 240, h = 280; g.save(); g.globalAlpha = a; g.fillStyle = 'rgba(8,16,26,.72)'; g.strokeStyle = 'rgba(246,238,224,.55)'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(x0, y0, w, h, 12); g.fill(); g.stroke(); const px = lo => x0 + 16 + (lo - 66) / (98 - 66) * (w - 32), py = la => y0 + 16 + (37 - la) / (37 - 5) * (h - 40);
+  g.fillStyle = 'rgba(246,238,224,.22)'; g.strokeStyle = 'rgba(246,238,224,.7)'; g.lineWidth = 1.2;
+  for (const r of INDIA) { g.beginPath(); r.forEach(([lo, la], i) => i ? g.lineTo(px(lo), py(la)) : g.moveTo(px(lo), py(la))); g.closePath(); g.fill(); g.stroke(); }
+  g.restore(); dot(px(92.24), py(11.56), 7, C.red, a, (Wo.G.time.value * .8) % 1); txt('in', 'INDIA', px(79), py(21), { size: 26, w: 600, track: 6, a, col: C.ice }); }
+
+function frame(t) {
+  O.clear(); setCam(CAM(t)); G.time.value = t;
+  // the coastline glows red: the hook hit, and again for the reserve and the end
+  G.glow.value = Math.max(env(t, .15, 6.6, .25, .6) * (1 + 1.2 * (1 - seg(t, .15, .9))), env(t, W('l03'), W('l04'), .4, .5) * .6, env(t, W('l06', .5), DUR + 1, .6, .1) * .8);
+  const rI = Math.max(env(t, 1.6, 7.6, .4, .6), env(t, W('l06', 1.0), DUR + 1, .5, .1));
+  ring.reveal(t < 10 ? eo(seg(t, 1.6, 3.4)) : eo(seg(t, W('l06', 1.0), W('l06', 2.6))), rI, 2); ringGlow.reveal(1, rI * .7); ring.u.phase.value = t * .15;
+  route1880.reveal(eio(seg(t, W('l04', .3), W('l04', 2.8))), env(t, W('l04', .2), W('l05'), .3, .4), 3);
+  routeBack.reveal(eio(seg(t, W('l04', 3.0), W('l04', 5.4))), env(t, W('l04', 2.9), W('l05'), .3, .4), 3);
+  heli.reveal(eo(seg(t, W('l05', 1.6), W('l05', 4.0))), env(t, W('l05', 1.5), W('l06'), .3, .4), 2); heli.u.phase.value = -t * .4;
+  arrows.forEach((a, i) => { const s = W('l05', 3.4) + i * .22; a.reveal(eo(seg(t, s, s + .5)), env(t, s, s + 1.4, .05, .5), 4); });
+  boat.reveal(eo(seg(t, W('l06', 1.2), W('l06', 4.2))), env(t, W('l06', 1.1), W('l07', 2.5), .3, .5), 2.5);
+  Wo.composer.render();
+
+  const top = 250;
+  { const a = env(t, .2, 6.5, .25, .5); txt('h1', 'THE ISLAND', Wd / 2, top - 30, { size: 104, w: 600, col: C.rule, a });
+    txt('h2', 'NOBODY MAY VISIT', Wd / 2, top + 60, { size: 92, w: 600, col: C.red, a: env(t, .5, 6.5, .25, .5) }); }
+  { const [x, y, v] = proj(IC[0] + RR * .72 / Wo.KX, IC[1] + RR * .72 / Wo.KZ, 0, .03); if (v) txt('ng', 'NO-GO ZONE', x, y - 14, { size: 36, w: 600, track: 8, col: C.red2, a: Math.max(env(t, 2.4, 7.4, .3, .4), env(t, W('l06', 2.0), DUR + 1, .3, .1)) }); }
+  { const a = env(t, W('l02', .3), W('l03', .3), .3, .4), [x, y, v] = proj(IC[0], IC[1], .05);
+    if (v) pin('nsi', 'NORTH SENTINEL ISLAND', x, y, a, C.rule, 38, 110);
+    const [px, py, pv] = proj(PB[0], PB[1], .02); if (pv) pin('pb', 'PORT BLAIR', px, py, a * seg(t, W('l02', 1.2), W('l02', 1.6)), C.ice, 30, 70);
+    const [sx, sy, sv] = proj(92.8, 11.78, .05); if (sv) txt('sa', 'SOUTH ANDAMAN', sx, sy, { size: 30, w: 600, track: 8, col: C.ice, a: a * seg(t, W('l02', 1.6), W('l02', 2.0)) });
+    txt('km', '≈60 KM²', Wd / 2, top + 10, { size: 104, w: 600, col: C.rule, a: env(t, W('l02', 4.2), W('l03', .3), .3, .4) });
+    txt('kj', 'OF JUNGLE', Wd / 2, top + 76, { size: 40, w: 500, track: 10, col: C.amber, a: env(t, W('l02', 4.4), W('l03', .3), .3, .4) });
+    india(env(t, W('l02', 1.4), W('l03', .3), .3, .4)); }
+  { const a = env(t, W('l03', .2), W('l04'), .3, .4); txt('s1', 'THE SENTINELESE', Wd / 2, top - 20, { size: 84, w: 600, col: C.rule, a });
+    txt('s2', 'UNCONTACTED', Wd / 2, top + 56, { size: 50, w: 600, track: 12, col: C.amber, a: env(t, W('l03', 1.4), W('l04'), .3, .4) });
+    txt('s3', 'POPULATION: UNKNOWN', Wd / 2, top + 120, { size: 40, w: 500, track: 8, col: C.ice, a: env(t, W('l03', 4.4), W('l04'), .3, .4) }); }
+  { const a = env(t, W('l04', .1), W('l05'), .3, .4); txt('y1', '1880', Wd / 2, top, { size: 124, w: 600, col: C.rule, a });
+    txt('y1b', 'TAKEN BY BRITISH OFFICERS', Wd / 2, top + 64, { size: 40, w: 500, track: 8, col: C.amber, a });
+    txt('y1c', 'TWO REPORTEDLY DIED', Wd / 2, top + 120, { size: 40, w: 500, track: 8, col: C.red2, a: env(t, W('l04', 3.6), W('l05'), .3, .4) });
+    const [px, py, pv] = proj(PB[0], PB[1], .02); if (pv) pin('pb2', 'PORT BLAIR', px, py, a, C.ice, 26, 30); }
+  { const a = env(t, W('l05', .1), W('l06'), .3, .4); txt('a1', 'ARROWS FOR OUTSIDERS', Wd / 2, top - 10, { size: 80, w: 600, col: C.rule, a });
+    txt('a2', '2004 · AFTER THE TSUNAMI', Wd / 2, top + 60, { size: 44, w: 500, track: 8, col: C.amber, a: env(t, W('l05', 2.6), W('l06'), .3, .4) }); }
+  { const a = env(t, W('l06', .1), W('l07'), .3, .4); txt('p1', 'PROTECTED RESERVE', Wd / 2, top - 10, { size: 84, w: 600, col: C.rule, a });
+    txt('p2', 'VISITING IS ILLEGAL', Wd / 2, top + 60, { size: 50, w: 600, track: 8, col: C.red, a: env(t, W('l06', 3.6), W('l07'), .3, .4) });
+    const e = boat.u.rev.value >= boat.L * .99 ? 1 : 0;
+    if (e) { const [x, y, v] = proj(IC[0] + (RR + .2) / Wo.KX, IC[1] + .005, 0, .03); if (v) { g.save(); g.globalAlpha = env(t, W('l06', 4.2), W('l07', 2.5), .2, .4); g.strokeStyle = C.red; g.lineWidth = 6; g.shadowColor = C.red; g.shadowBlur = 12;
+      g.beginPath(); g.moveTo(x - 16, y - 16); g.lineTo(x + 16, y + 16); g.moveTo(x + 16, y - 16); g.lineTo(x - 16, y + 16); g.stroke(); g.restore(); } } }
+  { const a = env(t, W('l07', .1), W('l08'), .3, .4); txt('n1', 'NO IMMUNITY', Wd / 2, top - 10, { size: 100, w: 600, col: C.rule, a });
+    txt('n2', 'A COMMON COLD COULD BE DEADLY', Wd / 2, top + 60, { size: 44, w: 500, track: 6, col: C.red2, a: env(t, W('l07', 2.0), W('l08'), .3, .4) }); }
+  { txt('e1', 'LEFT ALONE', Wd / 2, top - 10, { size: 112, w: 600, col: C.rule, a: seg(t, W('l08', .1), W('l08', .5)) });
+    txt('e2', 'BY CHOICE', Wd / 2, top + 84, { size: 84, w: 600, col: C.red, a: seg(t, W('l08', .6), W('l08', 1.0)) }); }
+  O.subtitles(CUES, t, C.red);
+  txt('src', 'Imagery: Sentinel-2 cloudless 2016 by EOX (CC BY 4.0) · Terrain: AWS Terrain Tiles · Relief ×4 · Ring distance indicative · No people depicted', Wd / 2, Ht - 36, { size: 20, w: 500, col: 'rgba(230,235,240,.75)', pass: true, blur: 4 });
+}
+await Promise.all([400, 500, 600, 700].map(w => document.fonts.load(`${w} 40px Barlow`))); await document.fonts.ready;
+window.DUR = T1 != null ? T1 - T0 : DUR; window.render = t => frame(t + T0);
+window.TEXTS = t => { window.render(t); return O.TX.map(o => ({ ...o })); };
+window.render(0); window.READY = true;
+</script></body></html>
