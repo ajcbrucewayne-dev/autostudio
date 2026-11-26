@@ -7,3 +7,8 @@ tiles|assets/s2/pointroberts_r|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_
 tiles|assets/s2/pointroberts_d|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|13|-123.32|48.9|-122.68|49.16
 # North Sentinel Island film: EOX Sentinel-2 cloudless 2016 (CC BY 4.0), z13 over the island and its reef
 tiles|assets/s2/northsentinel|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|13|92.08|11.44|92.36|11.66
+# Realistic 3D remakes: EOX Sentinel-2 cloudless 2016 (CC BY 4.0). North Sentinel region z11 + island z14; Svalbard region z10 + Longyearbyen/seed vault z13
+tiles|assets/s2/ns_region|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|11|91.75|10.85|93.15|12.35
+tiles|assets/s2/ns_island14|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|14|92.12|11.47|92.33|11.65
+tiles|assets/s2/sv_region|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|10|13.6|77.95|17.6|78.55
+tiles|assets/s2/sv_detail|https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg|13|15.36|78.185|15.74|78.27
